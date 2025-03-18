@@ -5,7 +5,7 @@ import numpy as np
 
 def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
     """
-    Finds local minima using a simplified moving window approach, optionally starting from a given date.
+    Finds local minima using a simplified moving window approach.
     (No changes needed in this function)
     """
     minima_dates = []
@@ -84,7 +84,7 @@ def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_peri
 
 def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     """
-    Finds cycle highs (highest highs) between cycle and half-cycle lows.
+    Finds cycle highs (highest highs) between cycle and half-cycle lows and labels them 'L' or 'R'.
 
     Args:
         df (pd.DataFrame): DataFrame with 'Date' and 'Close' columns.
@@ -92,10 +92,13 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
         half_cycle_lows_df (pd.DataFrame): DataFrame of half-cycle lows.
 
     Returns:
-        pd.DataFrame: DataFrame containing dates and 'High' prices of cycle highs.
+        tuple: A tuple containing:
+            - pd.DataFrame: DataFrame containing dates and 'High' prices of cycle highs.
+            - list: List of labels ('L' or 'R') for each cycle high.
     """
     cycle_high_dates = []
     cycle_high_prices = []
+    cycle_high_labels = [] # List to store 'L' or 'R' labels
 
     all_lows_df = pd.concat([cycle_lows_df, half_cycle_lows_df]).sort_values(by='Date').reset_index(drop=True)
 
@@ -113,12 +116,22 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
             cycle_high_dates.append(cycle_high_date)
             cycle_high_prices.append(cycle_high_price)
 
-    cycle_highs_df = pd.DataFrame({'Date': cycle_high_dates, 'High': cycle_high_prices})
-    return cycle_highs_df
+            # Calculate time differences and label
+            time_to_high_from_low = cycle_high_date - start_date
+            total_time_between_lows = end_date - start_date
+            midpoint_time = total_time_between_lows / 2
+
+            if time_to_high_from_low > midpoint_time:
+                cycle_high_labels.append('R') # Right/Late
+            else:
+                cycle_high_labels.append('L') # Left/Early
+
+    cycle_highs_df = pd.DataFrame({'Date': cycle_high_dates, 'High': cycle_high_prices, 'Label': cycle_high_labels}) # Include labels in df
+    return cycle_highs_df, cycle_high_labels # Return both df and labels
 
 
 # Streamlit App
-st.title('BTC Price with Cycle Lows & Highs')
+st.title('BTC Price with Cycle Lows & Highs (L/R Labels)')
 
 # File uploader widget
 uploaded_file = st.file_uploader("Upload your CSV file", type="csv")
@@ -165,8 +178,8 @@ if uploaded_file is not None:
                 tolerance_days=tolerance_days
             )
 
-            # Find cycle highs
-            cycle_highs_df = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
+            # Find cycle highs and labels
+            cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
 
 
             st.sidebar.write(f"Number of Cycle Lows found: {len(minima_df)}")
@@ -190,7 +203,12 @@ if uploaded_file is not None:
             ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
 
 
-            ax.set_title('Price Chart with Cycle Lows & Highs')
+            # Add labels to cycle high points
+            for index, row in cycle_highs_df.iterrows():
+                ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=9, ha='left', va='bottom')
+
+
+            ax.set_title('Price Chart with Cycle Lows & Highs (L/R Labels)')
             ax.set_xlabel('Date')
             ax.set_ylabel('Price')
             ax.legend()
