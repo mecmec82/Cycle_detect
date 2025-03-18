@@ -53,7 +53,13 @@ def find_local_minima_non_overlapping(df, window_size_days=66, expected_period_d
                     # Time difference is outside range, reject this minima and do not update last_minima_date
                     pass # In non-overlapping window approach, we just move to next window
 
-            start_index = window_df.index[-1] + 1 # Move start_index to after the window using window_df index
+            # Move to the start of the next window
+            try:
+                next_start_date = end_date
+                start_index = df['Date'][df['Date'] >= next_start_date].index[0]
+            except IndexError:
+                # No date found after end_date, we are done
+                break
         else:
             break # No more data in window, stop
 
