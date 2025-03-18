@@ -6,11 +6,10 @@ except AttributeError:
     numpy.NaN = numpy.nan  # If not, create numpy.NaN as an alias for numpy.nan
 
 import streamlit as st
-
 import pandas as pd
-
-import pandas_ta as ta  # Import pandas_ta
 import matplotlib.pyplot as plt
+import numpy as np # Ensure numpy is imported
+
 
 # --- Function Definitions ---
 
@@ -25,39 +24,50 @@ def load_data_from_csv(uploaded_file):
         st.error(f"Error loading CSV file: {e}")
         return None
 
+def calculate_rsi(series, period=14):
+    """
+    Calculates the Relative Strength Index (RSI) for a given pandas Series.
+    """
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).fillna(0)
+    loss = (-delta.where(delta < 0, 0)).fillna(0)
+
+    avg_gain = gain.rolling(window=period, min_periods=period).mean()
+    avg_loss = loss.rolling(window=period, min_periods=period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
 def calculate_indicators(df):
-    """Calculates technical indicators using pandas_ta."""
-    df['RSI'] = df['Close'].ta.rsi(length=14)  # RSI using pandas_ta
-    macd_indicator = df.ta.macd(fast=12, slow=26, signal=9) # MACD
-    df = pd.concat([df, macd_indicator], axis=1)
-    df.rename(columns={'MACD_12_26_9': 'MACD', 'MACDh_12_26_9': 'MACD_Hist', 'MACDs_12_26_9': 'MACD_Signal'}, inplace=True)
-
-    # Example of Bollinger Bands (optional - uncomment to include)
-    # bbands_indicator = df.ta.bbands(length=20, std=2)
-    # df = pd.concat([df, bbands_indicator], axis=1)
-    # df.rename(columns={'BBL_20_2.0': 'BBL', 'BBM_20_2.0': 'BBM', 'BBU_20_2.0': 'BBU', 'BBB_20_2.0': 'BBB', 'BBP_20_2.0': 'BBP'}, inplace=True)
-
+    """Calculates technical indicators (RSI and MACD)."""
+    df['RSI'] = calculate_rsi(df['Close'], period=14)  # Use our custom RSI function
+    # If you still want MACD from pandas_ta and it works, keep this:
+    # import pandas_ta as ta
+    # macd_indicator = df.ta.macd(fast=12, slow=26, signal=9)
+    # df = pd.concat([df, macd_indicator], axis=1)
+    # df.rename(columns={'MACD_12_26_9': 'MACD', 'MACDh_12_26_9': 'MACD_Hist', 'MACDs_12_26_9': 'MACD_Signal'}, inplace=True)
     return df
 
 def detect_cycle_low_signals(df):
     """Detects potential cycle low signals based on indicators (example rules)."""
     df['CycleLowSignal'] = False # Initialize signal column
 
-    # Example Rule 1: RSI oversold and MACD bullish crossover
+    # Example Rule 1: RSI oversold
     oversold_rsi = df['RSI'] < 30
-    macd_crossover = (df['MACD'] > df['MACD_Signal']) & (df['MACD'].shift(1) <= df['MACD_Signal'].shift(1))
 
-    # Example Rule 2:  Price below lower Bollinger Band (if you added BBands)
-    # below_lower_bb = df['Close'] < df['BBL']
+    # Example Rule 2:  (You can add other rules here based on other indicators if you implement them)
+    # ...
 
-    # Combine rules (you can adjust the logic as needed - using OR here)
-    df.loc[oversold_rsi & macd_crossover, 'CycleLowSignal'] = True # Example: Both must be true
+    # Combine rules (you can adjust the logic as needed - using OR, AND, etc.)
+    df.loc[oversold_rsi, 'CycleLowSignal'] = True # Example: Just RSI oversold for now
 
     return df
 
 def plot_data_with_signals(df, symbol):
     """Generates a plot with price, indicators, and cycle low signals."""
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 8), sharex=True) # 3 subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True) # Reduced to 2 subplots (Price & RSI)
 
     # Price Chart
     ax1.plot(df['Close'], label='Close Price', color='blue')
@@ -78,12 +88,6 @@ def plot_data_with_signals(df, symbol):
     ax2.legend()
     ax2.grid(True)
 
-    # MACD Indicator
-    ax3.plot(df['MACD'], label='MACD', color='teal')
-    ax3.plot(df['MACD_Signal'], label='MACD Signal', color='orange')
-    ax3.set_ylabel('MACD')
-    ax3.legend()
-    ax3.grid(True)
 
     plt.xlabel('Date')
     plt.tight_layout() # Adjust layout to prevent overlapping
