@@ -5,8 +5,8 @@ import numpy as np
 
 def find_local_minima_non_overlapping(df, window_size_days=66, expected_period_days=60, tolerance_days=6):
     """
-    Finds local minima (cycle lows) in non-overlapping windows of the 'Close' price data,
-    ensuring the time difference between consecutive minima is within the specified range.
+    Finds local minima (cycle lows) in non-overlapping windows of the 'Close' price data.
+    If no minima meets the time difference criteria, uses the lowest low in the window as fallback.
 
     Args:
         df (pd.DataFrame): DataFrame with 'Date' (datetime) and 'Close' columns.
@@ -37,14 +37,15 @@ def find_local_minima_non_overlapping(df, window_size_days=66, expected_period_d
             current_minima_date = df['Date'].loc[min_price_index_in_window]
             current_minima_price = df['Close'].loc[min_price_index_in_window]
 
-            accepted_minima = False # Flag to track if minima is accepted in this window
+            accepted_minima = False
+            fallback_minima_used = False # Track if fallback minima is used
 
             if last_minima_date is None:
                 # First minima, accept it
                 minima_dates.append(current_minima_date)
                 minima_prices.append(current_minima_price)
                 last_minima_date = current_minima_date
-                accepted_minima = True # Mark as accepted
+                accepted_minima = True
             else:
                 time_diff = current_minima_date - last_minima_date
                 if lower_bound_timedelta <= time_diff <= upper_bound_timedelta:
@@ -52,13 +53,29 @@ def find_local_minima_non_overlapping(df, window_size_days=66, expected_period_d
                     minima_dates.append(current_minima_date)
                     minima_prices.append(current_minima_price)
                     last_minima_date = current_minima_date
-                    accepted_minima = True # Mark as accepted
+                    accepted_minima = True
                 else:
-                    # Time difference is outside range, reject this minima
-                    pass # Do not add to minima_dates or update last_minima_date
+                    # Time difference is outside range, use fallback: lowest low in window
+                    fallback_min_price_index = window_df['Close'].idxmin()
+                    fallback_minima_date = df['Date'].loc[fallback_min_price_index]
+                    fallback_minima_price = df['Close'].loc[fallback_min_price_index]
+                    fallback_time_diff = fallback_minima_date - last_minima_date
+
+                    if lower_bound_timedelta <= fallback_time_diff <= upper_bound_timedelta:
+                        # Fallback minima meets time criteria, use it
+                        minima_dates.append(fallback_minima_date)
+                        minima_prices.append(fallback_minima_price)
+                        last_minima_date = fallback_minima_date
+                        accepted_minima = True
+                        fallback_minima_used = True # Mark that fallback was used
+                    else:
+                        # Fallback minima also fails time criteria, reject both
+                        pass
 
             if not accepted_minima:
                 print(f"Window: Start Date = {start_date}, End Date = {end_date} - Minima Rejected (Time Diff)")
+            elif fallback_minima_used:
+                print(f"Window: Start Date = {start_date}, End Date = {end_date} - Fallback Minima Accepted")
             else:
                 print(f"Window: Start Date = {start_date}, End Date = {end_date} - Minima Accepted")
 
