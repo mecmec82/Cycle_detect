@@ -1,3 +1,10 @@
+import numpy
+
+try:
+    numpy.NaN  # Check if numpy.NaN exists (for newer numpy)
+except AttributeError:
+    numpy.NaN = numpy.nan  # If not, create numpy.NaN as an alias for numpy.nan
+
 import streamlit as st
 import pandas as pd
 import pandas_ta as ta  # Import pandas_ta
