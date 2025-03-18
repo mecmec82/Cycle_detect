@@ -85,6 +85,7 @@ if uploaded_file is not None:
             st.sidebar.header("Parameter Settings")
             expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
             tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
+            show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
 
             # Find local minima (full cycle)
             minima_df = find_local_minima_simplified(
@@ -103,11 +104,18 @@ if uploaded_file is not None:
             st.sidebar.write(f"Number of Cycle Lows found: {len(minima_df)}")
             st.sidebar.write(f"Number of Half-Cycle Lows found: {len(half_cycle_minima_df)}")
 
+            # Identify overlapping dates and filter half-cycle minima to exclude overlaps
+            overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
+            half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
+
+
             # Plotting with Matplotlib and display in Streamlit
             fig, ax = plt.subplots(figsize=(14, 7))
             ax.plot(df['Date'], df['Close'], label='Price', color='blue')
             ax.scatter(minima_df['Date'], minima_df['Close'], color='green', label='Cycle Lows') # Green dots for cycle lows
-            ax.scatter(half_cycle_minima_df['Date'], half_cycle_minima_df['Close'], color='purple', label='Half-Cycle Lows') # Purple dots for half-cycle lows
+
+            if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
+                ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color='magenta', label='Half-Cycle Lows') # Magenta dots for half-cycle lows
 
             ax.set_title('Price Chart with Cycle and Half-Cycle Lows')
             ax.set_xlabel('Date')
