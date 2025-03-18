@@ -6,15 +6,7 @@ import numpy as np
 def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
     """
     Finds local minima using a simplified moving window approach, optionally starting from a given date.
-
-    Args:
-        df (pd.DataFrame): DataFrame with 'Date' (datetime) and 'Close' columns.
-        expected_period_days (int): Expected cycle period in days.
-        tolerance_days (int): Tolerance for cycle length variation in days.
-        start_date (datetime, optional): Date to start the first window from. Defaults to the first date in df.
-
-    Returns:
-        pd.DataFrame: DataFrame containing dates and 'Close' prices of local minima.
+    (No changes needed in this function)
     """
     minima_dates = []
     minima_prices = []
@@ -66,15 +58,7 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
 def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_period_days=60, tolerance_days=6):
     """
     Finds half-cycle lows relative to existing cycle lows.
-
-    Args:
-        df (pd.DataFrame): DataFrame with 'Date' and 'Close' columns.
-        cycle_lows_df (pd.DataFrame): DataFrame of cycle lows with 'Date' column.
-        expected_period_days (int): Expected cycle period in days.
-        tolerance_days (int): Tolerance for cycle length variation in days.
-
-    Returns:
-        pd.DataFrame: DataFrame containing dates and 'Close' prices of half-cycle lows.
+    (No changes needed in this function)
     """
     half_cycle_minima_dates = []
     half_cycle_minima_prices = []
@@ -98,9 +82,43 @@ def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_peri
     half_cycle_minima_df = pd.DataFrame({'Date': half_cycle_minima_dates, 'Close': half_cycle_minima_prices})
     return half_cycle_minima_df
 
+def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
+    """
+    Finds cycle highs (highest highs) between cycle and half-cycle lows.
+
+    Args:
+        df (pd.DataFrame): DataFrame with 'Date' and 'Close' columns.
+        cycle_lows_df (pd.DataFrame): DataFrame of cycle lows.
+        half_cycle_lows_df (pd.DataFrame): DataFrame of half-cycle lows.
+
+    Returns:
+        pd.DataFrame: DataFrame containing dates and 'High' prices of cycle highs.
+    """
+    cycle_high_dates = []
+    cycle_high_prices = []
+
+    all_lows_df = pd.concat([cycle_lows_df, half_cycle_lows_df]).sort_values(by='Date').reset_index(drop=True)
+
+    for i in range(len(all_lows_df) - 1):
+        start_date = all_lows_df['Date'].iloc[i]
+        end_date = all_lows_df['Date'].iloc[i+1]
+
+        high_window_df = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
+
+        if not high_window_df.empty:
+            max_high_price_index = high_window_df['High'].idxmax()
+            cycle_high_date = df['Date'].loc[max_high_price_index]
+            cycle_high_price = df['High'].loc[max_high_price_index]
+
+            cycle_high_dates.append(cycle_high_date)
+            cycle_high_prices.append(cycle_high_price)
+
+    cycle_highs_df = pd.DataFrame({'Date': cycle_high_dates, 'High': cycle_high_prices})
+    return cycle_highs_df
+
 
 # Streamlit App
-st.title('BTC Price with Local Minima (Cycle & Half-Cycle Lows)')
+st.title('BTC Price with Cycle Lows & Highs')
 
 # File uploader widget
 uploaded_file = st.file_uploader("Upload your CSV file", type="csv")
@@ -116,8 +134,11 @@ if uploaded_file is not None:
             # Convert 'Date' to datetime objects
             df['Date'] = pd.to_datetime(df['Date'])  # Let pandas infer format
 
-            # Convert 'Close' column to numeric, removing commas if present
-            df['Close'] = df['Close'].astype(str).str.replace(',', '').astype(float)
+            # Convert price columns to numeric, removing commas if present
+            price_columns = ['Open', 'High', 'Low', 'Close'] # Include 'High'
+            for col in price_columns:
+                df[col] = df[col].astype(str).str.replace(',', '').astype(float)
+
 
             # Sort DataFrame by date in ascending order (oldest to newest)
             df = df.sort_values(by='Date')
@@ -144,8 +165,14 @@ if uploaded_file is not None:
                 tolerance_days=tolerance_days
             )
 
+            # Find cycle highs
+            cycle_highs_df = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
+
+
             st.sidebar.write(f"Number of Cycle Lows found: {len(minima_df)}")
             st.sidebar.write(f"Number of Half-Cycle Lows found: {len(half_cycle_minima_df)}")
+            st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
+
 
             # Identify overlapping dates and filter half-cycle minima to exclude overlaps
             overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
@@ -160,7 +187,10 @@ if uploaded_file is not None:
             if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
                 ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color='magenta', label='Half-Cycle Lows') # Magenta dots for half-cycle lows
 
-            ax.set_title('Price Chart with Cycle and Half-Cycle Lows')
+            ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
+
+
+            ax.set_title('Price Chart with Cycle Lows & Highs')
             ax.set_xlabel('Date')
             ax.set_ylabel('Price')
             ax.legend()
