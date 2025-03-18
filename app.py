@@ -61,10 +61,15 @@ if uploaded_file is not None:
             df = df.sort_values(by='Date')
             df = df.reset_index(drop=True)
 
-            # Find local minima
-            window_size_days = 60
-            tolerance_days = 6
+            # Sidebar for parameters
+            st.sidebar.header("Parameter Settings")
+            window_size_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
+            tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
+
+            # Find local minima with adjustable parameters
             minima_df = find_local_minima(df.copy(), window_size_days, tolerance_days)
+
+            st.sidebar.write(f"Number of local minima found: {len(minima_df)}")
 
             # Plotting with Matplotlib and display in Streamlit
             fig, ax = plt.subplots(figsize=(14, 7))
