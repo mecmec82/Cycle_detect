@@ -1,6 +1,4 @@
 numpy
-setuptools
 streamlit
 pandas
-pandas-ta
 matplotlib
