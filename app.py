@@ -45,7 +45,7 @@ def detect_cycle_lows(df, window):
 
 # Load Data
 data = load_data(ticker, start_date, end_date)
-
+st.write("data")
 if data is not None:
     # Detect Cycle Lows
     cycle_low_dates = detect_cycle_lows(data, lookback_window)
