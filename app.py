@@ -3,14 +3,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6):
+def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
     """
-    Finds local minima using a simplified moving window approach.
+    Finds local minima using a simplified moving window approach, optionally starting from a given date.
 
     Args:
         df (pd.DataFrame): DataFrame with 'Date' (datetime) and 'Close' columns.
         expected_period_days (int): Expected cycle period in days.
         tolerance_days (int): Tolerance for cycle length variation in days.
+        start_date (datetime, optional): Date to start the first window from. Defaults to the first date in df.
 
     Returns:
         pd.DataFrame: DataFrame containing dates and 'Close' prices of local minima.
@@ -21,8 +22,12 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6):
 
     window_size_initial_days = expected_period_days + tolerance_days
 
-    # First Window (from start of data)
-    first_start_date = df['Date'].iloc[0]
+    # First Window (from start date or start of data)
+    if start_date is None:
+        first_start_date = df['Date'].iloc[0]
+    else:
+        first_start_date = start_date
+
     first_end_date = first_start_date + pd.Timedelta(days=window_size_initial_days)
     first_window_df = df[(df['Date'] >= first_start_date) & (df['Date'] <= first_end_date)]
 
@@ -56,6 +61,43 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6):
 
     minima_df = pd.DataFrame({'Date': minima_dates, 'Close': minima_prices})
     return minima_df
+
+
+def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_period_days=60, tolerance_days=6):
+    """
+    Finds half-cycle lows relative to existing cycle lows.
+
+    Args:
+        df (pd.DataFrame): DataFrame with 'Date' and 'Close' columns.
+        cycle_lows_df (pd.DataFrame): DataFrame of cycle lows with 'Date' column.
+        expected_period_days (int): Expected cycle period in days.
+        tolerance_days (int): Tolerance for cycle length variation in days.
+
+    Returns:
+        pd.DataFrame: DataFrame containing dates and 'Close' prices of half-cycle lows.
+    """
+    half_cycle_minima_dates = []
+    half_cycle_minima_prices = []
+
+    for index, cycle_low_row in cycle_lows_df.iterrows():
+        cycle_low_date = cycle_low_row['Date']
+
+        half_cycle_start_date = cycle_low_date + pd.Timedelta(days=(expected_period_days / 2) - (tolerance_days / 2))
+        half_cycle_end_date = cycle_low_date + pd.Timedelta(days=(expected_period_days / 2) + (tolerance_days / 2))
+
+        half_cycle_window_df = df[(df['Date'] >= half_cycle_start_date) & (df['Date'] <= half_cycle_end_date)]
+
+        if not half_cycle_window_df.empty:
+            half_cycle_min_price_index = half_cycle_window_df['Close'].idxmin()
+            half_cycle_minima_date = df['Date'].loc[half_cycle_min_price_index]
+            half_cycle_minima_price = df['Close'].loc[half_cycle_min_price_index]
+
+            half_cycle_minima_dates.append(half_cycle_minima_date)
+            half_cycle_minima_prices.append(half_cycle_minima_price)
+
+    half_cycle_minima_df = pd.DataFrame({'Date': half_cycle_minima_dates, 'Close': half_cycle_minima_prices})
+    return half_cycle_minima_df
+
 
 # Streamlit App
 st.title('BTC Price with Local Minima (Cycle & Half-Cycle Lows)')
@@ -94,10 +136,11 @@ if uploaded_file is not None:
                 tolerance_days=tolerance_days
             )
 
-            # Find half-cycle lows
-            half_cycle_minima_df = find_local_minima_simplified(
+            # Find half-cycle lows relative to cycle lows
+            half_cycle_minima_df = find_half_cycle_lows_relative_to_cycle_lows(
                 df.copy(),
-                expected_period_days=expected_period_days / 2,  # Half cycle period
+                minima_df, # Pass cycle lows df
+                expected_period_days=expected_period_days,
                 tolerance_days=tolerance_days
             )
 
