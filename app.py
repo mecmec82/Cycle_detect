@@ -35,11 +35,23 @@ def load_data_from_csv(uploaded_file):
         return None
 
 def calculate_rsi(series, period=14):
-    # ... (RSI calculation code - no changes needed) ...
+    """
+    Calculates the Relative Strength Index (RSI) for a given pandas Series.
+    """
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).fillna(0)
+    loss = (-delta.where(delta < 0, 0)).fillna(0)
+
+    avg_gain = gain.rolling(window=period, min_periods=period).mean()
+    avg_loss = loss.rolling(window=period, min_periods=period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
     return rsi
 
+
 def calculate_indicators(df):
-    """Calculates technical indicators (RSI)."""
+    """Calculates technical indicators (RSI).""" # Modified to only include RSI for now
     df['RSI'] = calculate_rsi(df['Close'], period=14)  # Use our custom RSI function
     print("--- RSI Values (First 20 rows) ---") # ADDED
     print(df['RSI'].head(20)) # ADDED
