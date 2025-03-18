@@ -45,7 +45,7 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
         if not current_window_df.empty:
             min_price_index_in_window = current_window_df['Close'].idxmin()
             current_minima_date = df['Date'].loc[min_price_index_in_window]
-            current_minima_price = df['Close'].loc[min_price_index_window]
+            current_minima_price = df['Close'].loc[min_price_index_in_window]
 
             minima_dates.append(current_minima_date)
             minima_prices.append(current_minima_price)
@@ -125,7 +125,7 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 
 # Streamlit App
-st.title('BTC Price with Swappable Colors for Cycle/Half-Cycle Lows')
+st.title('BTC Price with Color-Swappable Cycle/Half-Cycle Lows')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
@@ -207,13 +207,13 @@ if df is not None: # Proceed only if data is loaded successfully
     ax.plot(df['Date'], df['Close'], label='Price', color='blue')
 
     # Conditional color assignment based on swap_colors checkbox
-    cycle_low_color = 'green' if not swap_colors else 'magenta'
-    half_cycle_low_color = 'magenta' if not swap_colors else 'green'
+    cycle_low_color = 'green' if not swap_colors else 'magenta' # Default green, swapped to magenta if checked
+    half_cycle_low_color = 'magenta' if not swap_colors else 'green' # Default magenta, swapped to green if checked
 
-    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label) # Green dots for cycle lows
+    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label='Cycle Lows') # Green or magenta dots for cycle lows
 
     if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
-        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label) # Magenta dots for half-cycle lows
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label='Half-Cycle Lows') # Magenta or green dots for half-cycle lows
 
     ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
 
