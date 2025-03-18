@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import ccxt
+import datetime
 
 def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
     """
@@ -85,16 +87,7 @@ def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_peri
 def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     """
     Finds cycle highs (highest highs) between cycle and half-cycle lows and labels them 'L' or 'R'.
-
-    Args:
-        df (pd.DataFrame): DataFrame with 'Date' and 'Close' columns.
-        cycle_lows_df (pd.DataFrame): DataFrame of cycle lows.
-        half_cycle_lows_df (pd.DataFrame): DataFrame of half-cycle lows.
-
-    Returns:
-        tuple: A tuple containing:
-            - pd.DataFrame: DataFrame containing dates and 'High' prices of cycle highs.
-            - list: List of labels ('L' or 'R') for each cycle high.
+    (No changes needed in this function)
     """
     cycle_high_dates = []
     cycle_high_prices = []
@@ -130,98 +123,103 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     return cycle_highs_df, cycle_high_labels # Return both df and labels
 
 
+
 # Streamlit App
-st.title('BTC Price with Cycle Lows & Highs (L/R Labels)')
+st.title('BTC Price with Cycle Lows & Highs (L/R Labels) - Coinbase API')
 
-# File uploader widget
-uploaded_file = st.file_uploader("Upload your CSV file", type="csv")
+# Sidebar for parameters
+st.sidebar.header("Parameter Settings")
+expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
+tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
+show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
 
-if uploaded_file is not None:
+
+# Fetch data from Coinbase API
+@st.cache_data(ttl=3600) # Cache data for 1 hour
+def load_data_from_coinbase():
+    exchange = ccxt.coinbase()
+    symbol = 'BTC/USD'
+    timeframe = '1d'
+    limit = 365 * 2  # 2 years of daily data
+    since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit)
+    since_timestamp = exchange.parse8601(since_datetime.isoformat())
+
     try:
-        df = pd.read_csv(uploaded_file)
-
-        # Assume 'Date' and 'Close' columns, adjust if necessary
-        if 'Date' not in df.columns or 'Close' not in df.columns:
-            st.error("CSV file must contain 'Date' and 'Close' columns.")
-        else:
-            # Convert 'Date' to datetime objects
-            df['Date'] = pd.to_datetime(df['Date'])  # Let pandas infer format
-
-            # Convert price columns to numeric, removing commas if present
-            price_columns = ['Open', 'High', 'Low', 'Close'] # Include 'High'
-            for col in price_columns:
-                df[col] = df[col].astype(str).str.replace(',', '').astype(float)
-
-
-            # Sort DataFrame by date in ascending order (oldest to newest)
-            df = df.sort_values(by='Date')
-            df = df.reset_index(drop=True)
-
-            # Sidebar for parameters
-            st.sidebar.header("Parameter Settings")
-            expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
-            tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
-            show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
-
-            # Find local minima (full cycle)
-            minima_df = find_local_minima_simplified(
-                df.copy(),
-                expected_period_days=expected_period_days,
-                tolerance_days=tolerance_days
-            )
-
-            # Find half-cycle lows relative to cycle lows
-            half_cycle_minima_df = find_half_cycle_lows_relative_to_cycle_lows(
-                df.copy(),
-                minima_df, # Pass cycle lows df
-                expected_period_days=expected_period_days,
-                tolerance_days=tolerance_days
-            )
-
-            # Find cycle highs and labels
-            cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
-
-
-            st.sidebar.write(f"Number of Cycle Lows found: {len(minima_df)}")
-            st.sidebar.write(f"Number of Half-Cycle Lows found: {len(half_cycle_minima_df)}")
-            st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
-
-
-            # Identify overlapping dates and filter half-cycle minima to exclude overlaps
-            overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
-            half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
-
-
-            # Plotting with Matplotlib and display in Streamlit
-            fig, ax = plt.subplots(figsize=(14, 7))
-            ax.plot(df['Date'], df['Close'], label='Price', color='blue')
-            ax.scatter(minima_df['Date'], minima_df['Close'], color='green', label='Cycle Lows') # Green dots for cycle lows
-
-            if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
-                ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color='magenta', label='Half-Cycle Lows') # Magenta dots for half-cycle lows
-
-            ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
-
-
-            # Add labels to cycle high points
-            for index, row in cycle_highs_df.iterrows():
-                ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=9, ha='left', va='bottom')
-
-
-            ax.set_title('Price Chart with Cycle Lows & Highs (L/R Labels)')
-            ax.set_xlabel('Date')
-            ax.set_ylabel('Price')
-            ax.legend()
-            ax.grid(True)
-            plt.xticks(rotation=45)
-            plt.tight_layout()
-
-            st.pyplot(fig)
-
-    except pd.errors.ParserError:
-        st.error("Error: Could not parse CSV file. Please ensure it is a valid CSV format.")
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=since_timestamp, limit=limit)
+        df = pd.DataFrame(ohlcv, columns=['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
+        df['Date'] = pd.to_datetime(df['Timestamp'], unit='ms')
+        df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']] # Reorder columns
+        return df
+    except ccxt.ExchangeError as e:
+        st.error(f"Coinbase API error: {e}")
+        return None
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"An unexpected error occurred: {e}")
+        return None
+
+
+df = load_data_from_coinbase()
+
+if df is not None: # Proceed only if data is loaded successfully
+
+    # Sort DataFrame by date in ascending order (oldest to newest) - already sorted by API but good practice
+    df = df.sort_values(by='Date')
+    df = df.reset_index(drop=True)
+
+    # Find local minima (full cycle)
+    minima_df = find_local_minima_simplified(
+        df.copy(),
+        expected_period_days=expected_period_days,
+        tolerance_days=tolerance_days
+    )
+
+    # Find half-cycle lows relative to cycle lows
+    half_cycle_minima_df = find_half_cycle_lows_relative_to_cycle_lows(
+        df.copy(),
+        minima_df, # Pass cycle lows df
+        expected_period_days=expected_period_days,
+        tolerance_days=tolerance_days
+    )
+
+    # Find cycle highs and labels
+    cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
+
+
+    st.sidebar.write(f"Number of Cycle Lows found: {len(minima_df)}")
+    st.sidebar.write(f"Number of Half-Cycle Lows found: {len(half_cycle_minima_df)}")
+    st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
+
+
+    # Identify overlapping dates and filter half-cycle minima to exclude overlaps
+    overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
+    half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
+
+
+    # Plotting with Matplotlib and display in Streamlit
+    fig, ax = plt.subplots(figsize=(14, 7))
+    ax.plot(df['Date'], df['Close'], label='Price', color='blue')
+    ax.scatter(minima_df['Date'], minima_df['Close'], color='green', label='Cycle Lows') # Green dots for cycle lows
+
+    if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color='magenta', label='Half-Cycle Lows') # Magenta dots for half-cycle lows
+
+    ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
+
+
+    # Add labels to cycle high points
+    for index, row in cycle_highs_df.iterrows():
+        ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=9, ha='left', va='bottom')
+
+
+    ax.set_title('BTC/USD Price Chart (Coinbase) with Cycle Lows & Highs (L/R Labels)')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Price')
+    ax.legend()
+    ax.grid(True)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    st.pyplot(fig)
 
 else:
-    st.info("Please upload a CSV file to analyze.")
+    st.info("Failed to load data from Coinbase API. Please check for errors in the sidebar.")
