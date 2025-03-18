@@ -45,7 +45,7 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
         if not current_window_df.empty:
             min_price_index_in_window = current_window_df['Close'].idxmin()
             current_minima_date = df['Date'].loc[min_price_index_in_window]
-            current_minima_price = df['Close'].loc[min_price_index_in_window]
+            current_minima_price = df['Close'].loc[min_price_index_window]
 
             minima_dates.append(current_minima_date)
             minima_prices.append(current_minima_price)
@@ -125,7 +125,7 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 
 # Streamlit App
-st.title('BTC Price with Swappable Cycle/Half-Cycle Lows')
+st.title('BTC Price with Swappable Colors for Cycle/Half-Cycle Lows')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
@@ -133,7 +133,7 @@ timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18,
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
 show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
-swap_cycle_half_cycle = st.sidebar.checkbox("Swap Cycle/Half-Cycle", value=False) # NEW: Control to swap roles
+swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False) # NEW: Control to swap colors
 
 
 # Fetch data from Coinbase API
@@ -169,51 +169,51 @@ if df is not None: # Proceed only if data is loaded successfully
     df = df.sort_values(by='Date')
     df = df.reset_index(drop=True)
 
-    # Determine periods based on swap control
-    cycle_period = expected_period_days if not swap_cycle_half_cycle else expected_period_days / 2
-    half_cycle_period = expected_period_days / 2 if not swap_cycle_half_cycle else expected_period_days
-
-    # Find local minima (cycle or half-cycle depending on swap)
-    cycle_lows_df = find_local_minima_simplified(
+    # Find local minima (full cycle)
+    minima_df = find_local_minima_simplified(
         df.copy(),
-        expected_period_days=cycle_period,
+        expected_period_days=expected_period_days,
         tolerance_days=tolerance_days
     )
 
-    # Find half-cycle lows relative to cycle lows (or vice-versa depending on swap)
-    half_cycle_lows_df = find_half_cycle_lows_relative_to_cycle_lows(
+    # Find half-cycle lows relative to cycle lows
+    half_cycle_minima_df = find_half_cycle_lows_relative_to_cycle_lows(
         df.copy(),
-        cycle_lows_df, # Pass cycle lows df
-        expected_period_days=half_cycle_period, # Use the *other* period for relative half-cycles
+        minima_df, # Pass cycle lows df
+        expected_period_days=expected_period_days,
         tolerance_days=tolerance_days
     )
 
     # Find cycle highs and labels
-    cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), cycle_lows_df, half_cycle_lows_df)
+    cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
 
 
-    cycle_label = "Cycle Lows" if not swap_cycle_half_cycle else "Half-Cycle Lows" # Dynamic labels
-    half_cycle_label = "Half-Cycle Lows" if not swap_cycle_half_cycle else "Cycle Lows" # Dynamic labels
-    title = f'BTC/USD Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}' # Dynamic title
+    cycle_label = "Cycle Lows"
+    half_cycle_label = "Half-Cycle Lows"
 
 
-    st.sidebar.write(f"Number of {cycle_label} found: {len(cycle_lows_df)}") # Dynamic counts
-    st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_lows_df)}") # Dynamic counts
+    st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}") # Dynamic counts
+    st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
 
 
     # Identify overlapping dates and filter half-cycle minima to exclude overlaps
-    overlap_dates = set(cycle_lows_df['Date']).intersection(set(half_cycle_lows_df['Date']))
-    half_cycle_minima_df_no_overlap = half_cycle_lows_df[~half_cycle_lows_df['Date'].isin(overlap_dates)]
+    overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
+    half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
 
 
     # Plotting with Matplotlib and display in Streamlit
     fig, ax = plt.subplots(figsize=(14, 7))
     ax.plot(df['Date'], df['Close'], label='Price', color='blue')
-    ax.scatter(cycle_lows_df['Date'], cycle_lows_df['Close'], color='green', label=cycle_label) # Dynamic label for cycle lows
+
+    # Conditional color assignment based on swap_colors checkbox
+    cycle_low_color = 'green' if not swap_colors else 'magenta'
+    half_cycle_low_color = 'magenta' if not swap_colors else 'green'
+
+    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label) # Green dots for cycle lows
 
     if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
-        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color='magenta', label=half_cycle_label) # Dynamic label for half-cycle lows
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label) # Magenta dots for half-cycle lows
 
     ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
 
@@ -224,7 +224,7 @@ if df is not None: # Proceed only if data is loaded successfully
 
 
     # Add background color spans for half-cycles
-    all_lows_df = pd.concat([cycle_lows_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True) # Use no_overlap df
+    all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True) # Use no_overlap df
     for i in range(len(all_lows_df) - 1):
         start_date = all_lows_df['Date'].iloc[i]
         end_date = all_lows_df['Date'].iloc[i+1]
@@ -234,7 +234,7 @@ if df is not None: # Proceed only if data is loaded successfully
         ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2) # Light pink after midpoint
 
 
-    ax.set_title(title) # Dynamic title
+    ax.set_title(f'BTC/USD Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Dynamic title
     ax.set_xlabel('Date')
     ax.set_ylabel('Price')
     ax.legend()
