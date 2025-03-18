@@ -115,7 +115,7 @@ if uploaded_file is not None:
     if df is not None and not df.empty: # Check if data loading was successful and not empty
         symbol = "Stock Data" # You can try to extract symbol from filename if needed
         st.subheader("Data Preview")
-        st.dataframe(df.head()) # Display first few rows of data
+        st.dataframe(df.head(20)) # Display first few rows of data
 
         df_with_indicators = calculate_indicators(df.copy()) # Calculate indicators
         df_with_signals = detect_cycle_low_signals(df_with_indicators.copy()) # Detect signals
