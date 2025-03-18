@@ -29,39 +29,44 @@ def find_local_minima_non_overlapping(df, window_size_days=66, expected_period_d
     while start_index < len(df):
         start_date = df['Date'].iloc[start_index]
         end_date = start_date + window_delta
+        print(f"\nWindow: Start Date = {start_date}, End Date = {end_date}") # PRINT WINDOW DATES
 
-        window_df = df[(df['Date'] >= start_date) & (df['Date'] < end_date)] # strictly less than end_date to avoid overlap
-
+        window_df = df[(df['Date'] >= start_date) & (df['Date'] < end_date)]
         if not window_df.empty:
-            min_price_index_in_window = window_df['Close'].idxmin() # index of min price in window_df
+            print(f"Window DataFrame:\n{window_df}") # PRINT WINDOW DATA
+            min_price_index_in_window = window_df['Close'].idxmin()
             current_minima_date = df['Date'].loc[min_price_index_in_window]
             current_minima_price = df['Close'].loc[min_price_index_in_window]
+            print(f"Min Price in Window: Date = {current_minima_date}, Price = {current_minima_price}") # PRINT MINIMA IN WINDOW
 
             if last_minima_date is None:
-                # First minima, accept it
+                print("First Minima - Accepted") # PRINT FIRST MINIMA ACCEPTANCE
                 minima_dates.append(current_minima_date)
                 minima_prices.append(current_minima_price)
                 last_minima_date = current_minima_date
+                print(f"Last Minima Date updated to: {last_minima_date}") # PRINT LAST MINIMA DATE UPDATE
             else:
                 time_diff = current_minima_date - last_minima_date
+                print(f"Time Difference from Last Minima: {time_diff}") # PRINT TIME DIFF
                 if lower_bound_timedelta <= time_diff <= upper_bound_timedelta:
-                    # Time difference is within acceptable range, accept it
+                    print("Time Diff Within Range - Accepted") # PRINT TIME DIFF ACCEPTANCE
                     minima_dates.append(current_minima_date)
                     minima_prices.append(current_minima_price)
                     last_minima_date = current_minima_date
+                    print(f"Last Minima Date updated to: {last_minima_date}") # PRINT LAST MINIMA DATE UPDATE
                 else:
-                    # Time difference is outside range, reject this minima and do not update last_minima_date
-                    pass # In non-overlapping window approach, we just move to next window
+                    print("Time Diff Outside Range - Rejected") # PRINT TIME DIFF REJECTION
+                    pass
 
             # Move to the start of the next window
             try:
                 next_start_date = end_date
                 start_index = df['Date'][df['Date'] >= next_start_date].index[0]
+                print(f"Next Start Index: {start_index}") # PRINT NEXT START INDEX
             except IndexError:
-                # No date found after end_date, we are done
                 break
         else:
-            break # No more data in window, stop
+            break
 
     minima_df = pd.DataFrame({'Date': minima_dates, 'Close': minima_prices})
     return minima_df
