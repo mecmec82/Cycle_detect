@@ -8,14 +8,8 @@ except AttributeError:
 import streamlit as st
 
 import pandas as pd
-try:
-    import pandas_ta as ta
-    print(f"pandas_ta is installed. Version: {pandas_ta.__version__}") # Check version if import successful
-except ImportError as e:
-    print(f"Error importing pandas_ta: {e}")
-    raise  # Re-raise the ImportError so it's visible in logs
 
-#import pandas_ta as ta  # Import pandas_ta
+import pandas_ta as ta  # Import pandas_ta
 import matplotlib.pyplot as plt
 
 # --- Function Definitions ---
