@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from datetime import timedelta
 
 st.title("Cycle Low Detection Tool (CSV Upload)")
 st.markdown("Based on principles from [Graddhy's Market Cycles](https://www.graddhy.com/pages/market-cycles)")
@@ -8,14 +9,14 @@ st.markdown("Based on principles from [Graddhy's Market Cycles](https://www.grad
 # Sidebar for User Inputs
 st.sidebar.header("Settings")
 uploaded_file = st.sidebar.file_uploader("Upload CSV file (daily data with Date and Close columns)", type=["csv"])
-lookback_window = st.sidebar.slider("Lookback Window for Cycle Lows (Days)", 5, 90, 20)
+lookback_window = st.sidebar.slider("Lookback Window for Initial Low (Days)", 5, 90, 20) # For the *first* low
 expected_cycle_length = st.sidebar.number_input("Expected Cycle Length (Days)", min_value=1, value=35, step=1)
 tolerance_percent = st.sidebar.slider("Cycle Length Tolerance (%)", 0, 50, 10)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("Instructions:")
 st.sidebar.markdown("1. Upload CSV (daily data with Date, Close). 'Low' column is helpful.")
-st.sidebar.markdown("2. Adjust 'Lookback Window' for initial low detection.")
+st.sidebar.markdown("2. Adjust 'Lookback Window' for finding the *first* cycle low.")
 st.sidebar.markdown("3. Set 'Expected Cycle Length' (e.g., 35 for S&P500).")
 st.sidebar.markdown("4. Set 'Cycle Length Tolerance'.")
 st.sidebar.markdown("5. Observe chart for cycle lows (red markers).")
@@ -50,52 +51,63 @@ def load_data_from_csv(uploaded_file):
         st.warning("Please upload a CSV file to proceed.")
         return None
 
-
 def detect_cycle_lows(df, lookback_window, expected_cycle_length, tolerance_percent):
     """
-    Detects potential cycle lows using a windowed iteration approach with cycle length constraints.
+    Detects cycle lows using iterative forward search based on expected cycle length.
     """
     cycle_low_dates = []
     last_cycle_low_date = None
-    min_cycle_interval_days = expected_cycle_length * (1 - tolerance_percent / 100.0)
-    data_len = len(df)
+    tolerance_days = timedelta(days=expected_cycle_length * (tolerance_percent / 100.0))
 
-    # Iterate with a step size related to expected cycle length
-    step_size = max(1, int(expected_cycle_length / 2))  # Step roughly half cycle length, but at least 1
-    start_index = lookback_window # Start after the initial lookback window
-    for i in range(start_index, data_len, step_size):
-        # Define the window for this iteration
-        window_start = max(0, i - lookback_window) # Ensure window start is not negative
-        window_end = min(data_len, i + lookback_window + 1) # Ensure window end is within data bounds
-        window_df = df[window_start:window_end]
+    # 1. Find the first cycle low in the initial lookback window
+    first_window_df = df.iloc[:lookback_window+1] # Include current point
+    if not first_window_df.empty:
+        initial_low_date = first_window_df['Low'].idxmin()
+        initial_low_price = first_window_df.loc[initial_low_date, 'Low']
 
-        if window_df.empty: # Handle empty window case (shouldn't happen often, but good to check)
-            continue
-
-        # Find the date of the minimum 'Low' within this window
-        min_low_date_in_window = window_df['Low'].idxmin() # Date of min 'Low' in window
-        min_low_price_in_window = window_df.loc[min_low_date_in_window, 'Low'] # Price of min 'Low'
-
-        # Check if this minimum is a local low (using original lookback window around the min_low_date)
-        local_window_start_index = df.index.get_loc(min_low_date_in_window) # Get index by date
-        local_lookback_start = max(0, local_window_start_index - lookback_window)
-        local_lookback_end = min(data_len, local_window_start_index + lookback_window + 1)
-        local_lookback_window_data = df['Low'][local_lookback_start:local_lookback_end]
-
-        is_local_low = (min_low_price_in_window == local_lookback_window_data.min())
+        # Verify if it's a local low within the lookback window (centered around initial_low_date)
+        initial_local_start_index = df.index.get_loc(initial_low_date)
+        initial_local_lookback_start = max(0, initial_local_start_index - lookback_window)
+        initial_local_lookback_end = min(len(df), initial_local_start_index + lookback_window + 1)
+        initial_local_lookback_data = df['Low'][initial_local_lookback_start:initial_local_lookback_end]
+        if initial_low_price == initial_local_lookback_data.min(): # Confirm local low
+            cycle_low_dates.append(initial_low_date)
+            last_cycle_low_date = initial_low_date
+        else:
+            last_cycle_low_date = initial_low_date # Still set even if not local low, to start search from here.  May need to refine this.
 
 
-        if is_local_low: # Found a local minimum in the window
-            candidate_low_date = min_low_date_in_window
+    # 2. Iteratively search for subsequent lows
+    if last_cycle_low_date is not None:
+        current_low_date = last_cycle_low_date
+        while True:
+            expected_next_low_date = current_low_date + timedelta(days=expected_cycle_length)
+            search_window_start_date = expected_next_low_date - tolerance_days
+            search_window_end_date = expected_next_low_date + tolerance_days
 
-            if last_cycle_low_date is None: # First cycle low
-                cycle_low_dates.append(candidate_low_date)
-                last_cycle_low_date = candidate_low_date
+            # Define search window DataFrame (handle cases where window goes beyond data range)
+            search_window_df = df[search_window_start_date:search_window_end_date]
+
+            if search_window_df.empty: # No data in search window, stop searching forward
+                break
+
+            next_low_date_candidate = search_window_df['Low'].idxmin()
+            next_low_price_candidate = search_window_df.loc[next_low_date_candidate, 'Low']
+
+            # Verify local low in a lookback window around candidate
+            local_start_index = df.index.get_loc(next_low_date_candidate)
+            local_lookback_start = max(0, local_start_index - lookback_window)
+            local_lookback_end = min(len(df), local_start_index + lookback_window + 1)
+            local_lookback_data = df['Low'][local_lookback_start:local_lookback_end]
+
+            if next_low_price_candidate == local_lookback_data.min(): # Confirmed local low
+                if next_low_date_candidate > current_low_date: # Ensure it's a *later* low
+                    cycle_low_dates.append(next_low_date_candidate)
+                    current_low_date = next_low_date_candidate # Move forward from this new low
+                else:
+                    break # Found a low at or before current, something wrong, stop.  Maybe data issue?
             else:
-                time_since_last_low = (candidate_low_date - last_cycle_low_date).days
-                if time_since_last_low >= min_cycle_interval_days: # Check minimum interval
-                    cycle_low_dates.append(candidate_low_date)
-                    last_cycle_low_date = candidate_low_date
+                break # No local low found in search window, stop searching forward
 
     return cycle_low_dates
 
@@ -104,7 +116,7 @@ def detect_cycle_lows(df, lookback_window, expected_cycle_length, tolerance_perc
 data = load_data_from_csv(uploaded_file)
 
 if data is not None:
-    # Detect Cycle Lows (with time constraint)
+    # Detect Cycle Lows (iterative forward search)
     cycle_low_dates = detect_cycle_lows(data, lookback_window, expected_cycle_length, tolerance_percent)
     cycle_low_prices = data.loc[cycle_low_dates, 'Low']
 
@@ -127,17 +139,18 @@ if data is not None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Explanation Section
+    # Explanation Section (Updated for iterative approach)
     st.subheader("Understanding Cycle Lows (Simplified)")
-    st.write("This tool identifies potential cycle lows using a windowed iteration approach and cycle length constraints.")
-    st.write(f"The **Lookback Window** ({lookback_window} days) helps define the window for local minimum detection.")
-    st.write(f"The **Expected Cycle Length** is set to {expected_cycle_length} days, with a **Tolerance** of {tolerance_percent}%.")
-    st.write("The tool iterates through the data in windows, finds minimums within each window, checks if they are local lows, and ensures they are spaced out by approximately the 'Expected Cycle Length'.")
-    st.write("Red markers indicate potential cycle lows identified by this method.")
+    st.write("This tool now uses an iterative forward search to detect cycle lows based on the 'Expected Cycle Length'.")
+    st.write(f"It first finds an initial potential low within the first **Lookback Window** ({lookback_window} days).")
+    st.write(f"Then, it iteratively searches for subsequent lows approximately every **Expected Cycle Length** ({expected_cycle_length} days), with a **Tolerance** of {tolerance_percent}%.")
+    st.write("For each iteration, it defines a search window around the expected date of the next low and looks for the minimum low within that window.")
+    st.write("Red markers indicate potential cycle lows identified by this iterative forward search method.")
     st.write("**Important Considerations:**")
-    st.write("- **Windowed Iteration:** The tool now uses a windowed approach for potentially more efficient and robust cycle low detection.")
+    st.write("- **Iterative Forward Search:**  The tool now uses a more targeted search approach based on cycle length.")
+    st.write("- **Initial Low Dependency:** The first detected low influences subsequent low detection.") # Important point
     st.write("- **Subjectivity:** Cycle low detection is not exact. This tool is a visual aid.")
     st.write("- **Timeframe Dependency:** Daily timeframe assumed. Adjust parameters for other timeframes.")
     st.write("- **Context is Key:** Consider other market factors.")
-    st.write("- **Simplified Algorithm:** Basic algorithm, cycle length is approximate.")
-    st.write("Experiment with parameters to refine cycle low detection for your data.")
+    st.write("- **Simplified Algorithm:** Basic algorithm, cycle length is approximate and real market cycles can vary significantly.")
+    st.write("Experiment with parameters, especially 'Lookback Window' (for the initial low) and 'Expected Cycle Length' and 'Tolerance' to refine cycle low detection for your data.")
