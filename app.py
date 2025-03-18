@@ -19,6 +19,16 @@ def load_data_from_csv(uploaded_file):
         df = pd.read_csv(uploaded_file, parse_dates=['Date']) # Assuming 'Date' column
         df = df.set_index('Date') # Set Date as index for time series analysis
         df.sort_index(inplace=True) # Ensure chronological order
+
+        # --- CONVERT 'Close' COLUMN TO NUMERIC ---
+        df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+        print("--- Data Types AFTER 'Close' conversion ---")
+        print(df.dtypes)
+        print("--- First 5 rows AFTER 'Close' conversion ---")
+        print(df.head())
+        # --- END CONVERSION LINES ---
+
+
         return df
     except Exception as e:
         st.error(f"Error loading CSV file: {e}")
@@ -41,13 +51,8 @@ def calculate_rsi(series, period=14):
 
 
 def calculate_indicators(df):
-    """Calculates technical indicators (RSI and MACD)."""
+    """Calculates technical indicators (RSI).""" # Modified to only include RSI for now
     df['RSI'] = calculate_rsi(df['Close'], period=14)  # Use our custom RSI function
-    # If you still want MACD from pandas_ta and it works, keep this:
-    # import pandas_ta as ta
-    # macd_indicator = df.ta.macd(fast=12, slow=26, signal=9)
-    # df = pd.concat([df, macd_indicator], axis=1)
-    # df.rename(columns={'MACD_12_26_9': 'MACD', 'MACDh_12_26_9': 'MACD_Hist', 'MACDs_12_26_9': 'MACD_Signal'}, inplace=True)
     return df
 
 def detect_cycle_low_signals(df):
@@ -56,9 +61,6 @@ def detect_cycle_low_signals(df):
 
     # Example Rule 1: RSI oversold
     oversold_rsi = df['RSI'] < 30
-
-    # Example Rule 2:  (You can add other rules here based on other indicators if you implement them)
-    # ...
 
     # Combine rules (you can adjust the logic as needed - using OR, AND, etc.)
     df.loc[oversold_rsi, 'CycleLowSignal'] = True # Example: Just RSI oversold for now
