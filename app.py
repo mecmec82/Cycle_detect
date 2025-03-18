@@ -8,7 +8,7 @@ def find_local_minima_non_overlapping(df, window_size_days=66):
     Finds local minima (cycle lows) in non-overlapping windows of the 'Close' price data.
 
     Args:
-        df (pd.DataFrame): DataFrame with 'Date' (datetime) and 'Close' (float) columns.
+        df (pd.DataFrame): DataFrame with 'Date' (datetime) and 'Close' columns.
         window_size_days (int): Size of each non-overlapping window in days.
 
     Returns:
@@ -26,10 +26,10 @@ def find_local_minima_non_overlapping(df, window_size_days=66):
         window_df = df[(df['Date'] >= start_date) & (df['Date'] < end_date)] # strictly less than end_date to avoid overlap
 
         if not window_df.empty:
-            min_price_index = window_df['Close'].idxmin() # index of min price in window_df
-            minima_dates.append(df['Date'].loc[min_price_index]) # use original df index to get date
-            minima_prices.append(df['Close'].loc[min_price_index]) # use original df index to get price
-            start_index = df.index.get_loc(window_df['Date'].iloc[-1].name) + 1 # move start_index to after the window
+            min_price_index_in_window = window_df['Close'].idxmin() # index of min price in window_df
+            minima_dates.append(df['Date'].loc[min_price_index_in_window]) # use original df index to get date
+            minima_prices.append(df['Close'].loc[min_price_index_in_window]) # use original df index to get price
+            start_index = window_df.index[-1] + 1 # Move start_index to after the window using window_df index
         else:
             break # No more data in window, stop
 
