@@ -125,11 +125,11 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 
 # Streamlit App
-st.title('Cycle Lows')
+st.title('BTC Price with Cycle Background Colors')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
-timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18, 24, 48, 72, 96], index=1) # Added timeframe selectbox
+timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18, 24, 48, 72, 96], index=3) # Added timeframe selectbox
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
 show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
@@ -196,6 +196,8 @@ if df is not None: # Proceed only if data is loaded successfully
     overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
     half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
 
+    all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True) # Use no_overlap df
+
 
     # Plotting with Matplotlib and display in Streamlit
     fig, ax = plt.subplots(figsize=(14, 7))
@@ -211,6 +213,16 @@ if df is not None: # Proceed only if data is loaded successfully
     # Add labels to cycle high points
     for index, row in cycle_highs_df.iterrows():
         ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=9, ha='left', va='bottom')
+
+
+    # Add background color spans for half-cycles
+    for i in range(len(all_lows_df) - 1):
+        start_date = all_lows_df['Date'].iloc[i]
+        end_date = all_lows_df['Date'].iloc[i+1]
+        midpoint_date = start_date + (end_date - start_date) / 2
+
+        ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2) # Light green before midpoint
+        ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2) # Light pink after midpoint
 
 
     ax.set_title(f'BTC/USD Price Chart (Coinbase) - Last {timeframe_months} Months') # Dynamic title with timeframe
