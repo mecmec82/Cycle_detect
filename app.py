@@ -129,19 +129,21 @@ st.title('BTC Price with Cycle Lows & Highs (L/R Labels) - Coinbase API')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
+timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18, 24, 48, 72, 96], index=3) # Added timeframe selectbox
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
 show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
 
 
 # Fetch data from Coinbase API
-@st.cache_data(ttl=3600) # Cache data for 1 hour
-def load_data_from_coinbase():
+@st.cache_data(ttl=3600, persist=True) # Cache data for 1 hour, use persist=True for session-based caching if needed
+def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the cached function
     exchange = ccxt.coinbase()
     symbol = 'BTC/USD'
     timeframe = '1d'
-    limit = 365 * 2  # 2 years of daily data
-    since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit)
+    limit_days = timeframe_months * 31  # Approximate days for selected months (more than enough)
+    limit = limit_days # Use calculated limit
+    since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit_days) # Use limit_days
     since_timestamp = exchange.parse8601(since_datetime.isoformat())
 
     try:
@@ -158,7 +160,7 @@ def load_data_from_coinbase():
         return None
 
 
-df = load_data_from_coinbase()
+df = load_data_from_coinbase(timeframe_months) # Pass timeframe_months to data loading function
 
 if df is not None: # Proceed only if data is loaded successfully
 
@@ -211,7 +213,7 @@ if df is not None: # Proceed only if data is loaded successfully
         ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=9, ha='left', va='bottom')
 
 
-    ax.set_title('BTC/USD Price Chart (Coinbase) with Cycle Lows & Highs (L/R Labels)')
+    ax.set_title(f'BTC/USD Price Chart (Coinbase) - Last {timeframe_months} Months') # Dynamic title with timeframe
     ax.set_xlabel('Date')
     ax.set_ylabel('Price')
     ax.legend()
