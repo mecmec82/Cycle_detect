@@ -40,38 +40,51 @@ def find_local_minima(df, window_size_days=60, tolerance_days=6):
 # Streamlit App
 st.title('BTC Price with Local Minima (Cycle Lows)')
 
-# Load the CSV file
-file_path = 'COINDESK_BTCUSD (1).csv'
-df = pd.read_csv(file_path)
+# File uploader widget
+uploaded_file = st.file_uploader("Upload your CSV file", type="csv")
 
-# Convert 'Date' to datetime objects
-df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y')
+if uploaded_file is not None:
+    try:
+        df = pd.read_csv(uploaded_file)
 
-# Convert 'Close' and other price columns to numeric, removing commas
-price_columns = ['Open', 'High', 'Low', 'Close']
-for col in price_columns:
-    df[col] = df[col].str.replace(',', '').astype(float)
+        # Assume 'Date' and 'Close' columns, adjust if necessary
+        if 'Date' not in df.columns or 'Close' not in df.columns:
+            st.error("CSV file must contain 'Date' and 'Close' columns.")
+        else:
+            # Convert 'Date' to datetime objects
+            df['Date'] = pd.to_datetime(df['Date'])  # Let pandas infer format
 
-# Sort DataFrame by date in ascending order (oldest to newest)
-df = df.sort_values(by='Date')
-df = df.reset_index(drop=True)
+            # Convert 'Close' column to numeric, removing commas if present
+            df['Close'] = df['Close'].astype(str).str.replace(',', '').astype(float)
 
-# Find local minima
-window_size_days = 60
-tolerance_days = 6
-minima_df = find_local_minima(df.copy(), window_size_days, tolerance_days)
+            # Sort DataFrame by date in ascending order (oldest to newest)
+            df = df.sort_values(by='Date')
+            df = df.reset_index(drop=True)
 
-# Plotting with Matplotlib and display in Streamlit
-fig, ax = plt.subplots(figsize=(14, 7))
-ax.plot(df['Date'], df['Close'], label='BTC Price', color='blue')
-ax.scatter(minima_df['Date'], minima_df['Close'], color='red', label='Local Minima (Cycle Lows)')
+            # Find local minima
+            window_size_days = 60
+            tolerance_days = 6
+            minima_df = find_local_minima(df.copy(), window_size_days, tolerance_days)
 
-ax.set_title('BTC Price with Local Minima (Cycle Lows)')
-ax.set_xlabel('Date')
-ax.set_ylabel('Price (USD)')
-ax.legend()
-ax.grid(True)
-plt.xticks(rotation=45)
-plt.tight_layout()
+            # Plotting with Matplotlib and display in Streamlit
+            fig, ax = plt.subplots(figsize=(14, 7))
+            ax.plot(df['Date'], df['Close'], label='Price', color='blue')
+            ax.scatter(minima_df['Date'], minima_df['Close'], color='red', label='Local Minima (Cycle Lows)')
 
-st.pyplot(fig)
+            ax.set_title('Price Chart with Local Minima (Cycle Lows)')
+            ax.set_xlabel('Date')
+            ax.set_ylabel('Price')
+            ax.legend()
+            ax.grid(True)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+
+            st.pyplot(fig)
+
+    except pd.errors.ParserError:
+        st.error("Error: Could not parse CSV file. Please ensure it is a valid CSV format.")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+
+else:
+    st.info("Please upload a CSV file to analyze.")
