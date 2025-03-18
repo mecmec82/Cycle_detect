@@ -1,4 +1,4 @@
 streamlit
 pandas
-ta-lib
+pandas_ta
 matplotlib
