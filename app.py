@@ -35,24 +35,14 @@ def load_data_from_csv(uploaded_file):
         return None
 
 def calculate_rsi(series, period=14):
-    """
-    Calculates the Relative Strength Index (RSI) for a given pandas Series.
-    """
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).fillna(0)
-    loss = (-delta.where(delta < 0, 0)).fillna(0)
-
-    avg_gain = gain.rolling(window=period, min_periods=period).mean()
-    avg_loss = loss.rolling(window=period, min_periods=period).mean()
-
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
+    # ... (RSI calculation code - no changes needed) ...
     return rsi
 
-
 def calculate_indicators(df):
-    """Calculates technical indicators (RSI).""" # Modified to only include RSI for now
+    """Calculates technical indicators (RSI)."""
     df['RSI'] = calculate_rsi(df['Close'], period=14)  # Use our custom RSI function
+    print("--- RSI Values (First 20 rows) ---") # ADDED
+    print(df['RSI'].head(20)) # ADDED
     return df
 
 def detect_cycle_low_signals(df):
@@ -61,9 +51,15 @@ def detect_cycle_low_signals(df):
 
     # Example Rule 1: RSI oversold
     oversold_rsi = df['RSI'] < 30
+    print("--- Oversold RSI condition (First 20 rows) ---") # ADDED
+    print(oversold_rsi.head(20)) # ADDED
 
     # Combine rules (you can adjust the logic as needed - using OR, AND, etc.)
     df.loc[oversold_rsi, 'CycleLowSignal'] = True # Example: Just RSI oversold for now
+
+    cycle_low_dates = df[df['CycleLowSignal']].index # ADDED
+    print("--- Dates with Cycle Low Signals ---") # ADDED
+    print(cycle_low_dates) # ADDED
 
     return df
 
