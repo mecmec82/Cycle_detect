@@ -45,6 +45,7 @@ def calculate_fft(data, sampling_rate):
 def detect_cycle_lows_fft(frequencies, magnitude_spectrum, sampling_rate):
     """
     Detects dominant cycle periods based on peaks in the FFT magnitude spectrum.
+    Returns periods sorted by length (longest first).
 
     Args:
         frequencies (np.array): Frequencies from FFT.
@@ -52,7 +53,7 @@ def detect_cycle_lows_fft(frequencies, magnitude_spectrum, sampling_rate):
         sampling_rate (float): Sampling rate (days per sample, here 1.0 for daily data).
 
     Returns:
-        list: List of dominant cycle periods in days.
+        list: List of dominant cycle periods in days, sorted longest to shortest.
     """
     if magnitude_spectrum is None: # Handle case where FFT failed
         return []
@@ -60,27 +61,51 @@ def detect_cycle_lows_fft(frequencies, magnitude_spectrum, sampling_rate):
     # Find peaks in the magnitude spectrum
     peaks, _ = find_peaks(magnitude_spectrum, prominence=10) # Adjust prominence as needed
 
-    dominant_periods = []
+    cycle_periods = []
     for peak_index in peaks:
         frequency = frequencies[peak_index]
         if frequency > 0: # Avoid division by zero, ignore DC component (frequency=0)
             period_days = 1 / frequency # Period in days (since frequency is in cycles/day)
-            dominant_periods.append(period_days)
+            cycle_periods.append(period_days)
 
-    return dominant_periods
+    # Sort periods by length (longest first)
+    cycle_periods.sort(reverse=True)
+    return cycle_periods
 
-def detect_cycle_lows_moving_average(data, time, cycle_periods_days):
+
+def detect_cycle_low_points(data, time, cycle_period_days):
     """
-    Detects cycle lows using moving averages for visualization.
+    Detects potential cycle low points based on a moving average.
 
     Args:
         data (np.array): Time series data.
         time (np.array): Time array (dates).
-        cycle_periods_days (list): List of cycle periods in days to calculate moving averages for.
+        cycle_period_days (float): Cycle period in days for moving average.
 
     Returns:
-        dict: Dictionary of moving average data for each cycle period.
-              Keys are cycle periods (days), values are tuples of (time, moving_average).
+        tuple: Lists of cycle low dates and corresponding prices.
+    """
+    window = int(round(cycle_period_days))
+    if window <= 1 or window > len(data):
+        return [], []  # Invalid window, return empty lists
+
+    moving_average = pd.Series(data).rolling(window=window, center=True).mean().to_numpy()
+
+    cycle_low_dates = []
+    cycle_low_prices = []
+
+    # Simple cycle low detection: price below MA and then starts rising
+    for i in range(1, len(data)): # Start from index 1 to compare with previous day
+        if data[i-1] <= moving_average[i-1] and data[i] > moving_average[i] and data[i] > data[i-1]: # Price crossed MA upwards and is rising
+            cycle_low_dates.append(time[i]) # Use time[i] as the date of the low
+            cycle_low_prices.append(data[i])
+
+    return cycle_low_dates, cycle_low_prices
+
+
+def detect_cycle_lows_moving_average(data, time, cycle_periods_days):
+    """
+    Detects cycle lows using moving averages for visualization. (Unchanged from previous version)
     """
     ma_data = {}
     for period_days in cycle_periods_days:
@@ -93,7 +118,7 @@ def detect_cycle_lows_moving_average(data, time, cycle_periods_days):
 
 def main():
     st.title("Stock Market Cycle Analysis Dashboard")
-    st.write("Upload your stock market data (daily time step CSV) to detect daily and weekly cycles.")
+    st.write("Upload your stock market data (daily time step CSV) to detect daily and weekly cycles and cycle lows.")
     st.write("This dashboard analyzes daily stock data. Ensure your CSV has a 'Date' column and a price column (e.g., 'Close').")
 
     # Sidebar for settings
@@ -101,6 +126,7 @@ def main():
     data_source = st.sidebar.radio("Data Source", ["Upload Stock Data CSV File"])
     sampling_rate_daily = 1.0
     sampling_rate = st.sidebar.number_input("Sampling Rate (Days per Sample)", min_value=0.01, value=sampling_rate_daily, format="%.2f", disabled=True, help="Sampling rate is fixed at 1 day per sample for daily stock data.")
+    cycle_low_detection_enabled = st.sidebar.checkbox("Detect Cycle Lows", value=True) # Checkbox to enable/disable cycle low detection
 
     data = None
     time = None
@@ -143,8 +169,11 @@ def main():
             if dominant_cycle_periods:
                 for period in dominant_cycle_periods:
                     st.write(f"- {period:.2f} days")
+
+                fundamental_period = dominant_cycle_periods[0] if dominant_cycle_periods else None # Get the first (longest) period
             else:
                 st.write("No significant cycles detected based on FFT peak analysis.")
+                fundamental_period = None
 
 
             # Data Summary
@@ -156,13 +185,20 @@ def main():
                 st.write("Time Range: Date range display unavailable due to date format issues.")
             st.write(f"Sampling Rate: Daily (1 sample per day)")
 
-            # Plot Time Domain Data with Moving Averages
-            st.subheader("Stock Price Time Series with Moving Averages (for Cycle Visualization)")
-            fig_time, ax_time = plt.subplots(figsize=(10, 6)) # Adjust figure size
+            # Plot Time Domain Data with Moving Averages and Cycle Lows
+            st.subheader("Stock Price Time Series with Moving Averages & Cycle Lows")
+            fig_time, ax_time = plt.subplots(figsize=(12, 7)) # Adjust figure size
             ax_time.plot(time, data, label="Stock Price", alpha=0.7) # Reduced alpha for original data
 
+            cycle_low_dates = []
+            cycle_low_prices = []
+
+            if cycle_low_detection_enabled and fundamental_period: # Only detect and plot if enabled and fundamental period found
+                cycle_low_dates, cycle_low_prices = detect_cycle_low_points(data, time, fundamental_period)
+                ax_time.plot(cycle_low_dates, cycle_low_prices, 'ro', markersize=5, label=f"Cycle Lows ({fundamental_period:.0f}-Day Cycle)") # Mark cycle lows with red dots
+
             # Calculate and plot moving averages for detected cycle periods (and some standard periods)
-            cycle_periods_to_plot = dominant_cycle_periods + [7, 30, 40] # Include weekly, 30, 40 day cycles
+            cycle_periods_to_plot = dominant_cycle_periods + [7, 30, 40] if dominant_cycle_periods else [7, 30, 40] # Include standard periods even if no dominant cycles detected
             ma_data = detect_cycle_lows_moving_average(data, time, cycle_periods_to_plot)
 
             for period_days, (ma_time, moving_average) in ma_data.items():
@@ -170,7 +206,7 @@ def main():
 
             ax_time.set_xlabel("Date")
             ax_time.set_ylabel("Stock Price")
-            ax_time.set_title("Stock Price Time Series with Moving Averages")
+            ax_time.set_title("Stock Price Time Series with Moving Averages and Cycle Lows")
             plt.xticks(rotation=45)
             plt.grid(True, axis='y', linestyle=':') # Grid for better readability
             plt.legend() # Show legend
