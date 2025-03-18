@@ -9,22 +9,20 @@ st.markdown("Based on principles from [Graddhy's Market Cycles](https://www.grad
 st.sidebar.header("Settings")
 uploaded_file = st.sidebar.file_uploader("Upload CSV file (daily data with Date and Close columns)", type=["csv"])
 lookback_window = st.sidebar.slider("Lookback Window for Cycle Lows (Days)", 5, 90, 20)
-expected_cycle_length = st.sidebar.number_input("Expected Cycle Length (Days)", min_value=1, value=35, step=1) # Default to 35 days
-tolerance_percent = st.sidebar.slider("Cycle Length Tolerance (%)", 0, 50, 10) # Default to 10% tolerance
+expected_cycle_length = st.sidebar.number_input("Expected Cycle Length (Days)", min_value=1, value=35, step=1)
+tolerance_percent = st.sidebar.slider("Cycle Length Tolerance (%)", 0, 50, 10)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("Instructions:")
-st.sidebar.markdown("1. Upload a CSV file containing daily stock data.")
-st.sidebar.markdown("   The CSV should have 'Date' and 'Close' columns (and 'Low' for better results).")
-st.sidebar.markdown("2. Adjust 'Lookback Window' for initial low detection sensitivity.")
+st.sidebar.markdown("1. Upload CSV (daily data with Date, Close). 'Low' column is helpful.")
+st.sidebar.markdown("2. Adjust 'Lookback Window' for initial low detection.")
 st.sidebar.markdown("3. Set 'Expected Cycle Length' (e.g., 35 for S&P500).")
-st.sidebar.markdown("4. Set 'Cycle Length Tolerance' to control allowed variation.")
-st.sidebar.markdown("5. Observe the chart for potential cycle lows marked in red.")
+st.sidebar.markdown("4. Set 'Cycle Length Tolerance'.")
+st.sidebar.markdown("5. Observe chart for cycle lows (red markers).")
 st.sidebar.markdown("---")
-st.sidebar.markdown("Disclaimer: This is a simplified tool for educational purposes and should not be used for financial advice.")
+st.sidebar.markdown("Disclaimer: Educational tool, not financial advice.")
 
 def load_data_from_csv(uploaded_file):
-    # ... (same load_data_from_csv function as before) ...
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
@@ -55,26 +53,29 @@ def load_data_from_csv(uploaded_file):
 
 def detect_cycle_lows(df, window, expected_cycle_length, tolerance_percent):
     """
-    Detects potential cycle lows with a minimum time separation.
+    Detects potential cycle lows with a minimum time separation, allowing for multiple lows.
     """
     cycle_low_dates = []
-    last_cycle_low_date = None  # Keep track of the last detected cycle low date
-    min_cycle_interval_days = expected_cycle_length * (1 - tolerance_percent / 100.0) # Calculate minimum interval
+    last_cycle_low_date = None
+    min_cycle_interval_days = expected_cycle_length * (1 - tolerance_percent / 100.0)
 
     for i in range(window, len(df)):
         window_data = df['Low'][i-window:i+1]
         current_low = df['Low'][i]
         current_date = df.index[i]
 
-        if current_low == window_data.min(): # Found a local minimum
-            if last_cycle_low_date is None: # First cycle low found
+        is_local_low = (current_low == window_data.min())
+
+        if is_local_low:
+            if last_cycle_low_date is None:
                 cycle_low_dates.append(current_date)
                 last_cycle_low_date = current_date
             else:
                 time_since_last_low = (current_date - last_cycle_low_date).days
-                if time_since_last_low >= min_cycle_interval_days: # Check minimum interval
+                if time_since_last_low >= min_cycle_interval_days:
                     cycle_low_dates.append(current_date)
                     last_cycle_low_date = current_date
+                # No else action needed here - just continue to next data point
 
     return cycle_low_dates
 
@@ -87,7 +88,7 @@ if data is not None:
     cycle_low_dates = detect_cycle_lows(data, lookback_window, expected_cycle_length, tolerance_percent)
     cycle_low_prices = data.loc[cycle_low_dates, 'Low']
 
-    # Create Plotly Chart (same as before)
+    # Create Plotly Chart
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Price (Close)'))
     fig.add_trace(go.Scatter(
@@ -106,16 +107,18 @@ if data is not None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Explanation Section (Updated to include cycle length constraint)
+    # Explanation Section (Updated for clarity on cycle period)
     st.subheader("Understanding Cycle Lows (Simplified)")
-    st.write("This tool attempts to identify potential cycle lows by finding local minimums in the price chart based on a defined lookback window, **and now enforces a minimum time separation between cycle lows.**")
-    st.write(f"The **Lookback Window** is set to {lookback_window} days, used for initial local minimum detection.")
-    st.write(f"The **Expected Cycle Length** is set to {expected_cycle_length} days, and the **Tolerance** to {tolerance_percent}%.")
-    st.write(f"This means a new cycle low will only be marked if it occurs at least approximately {expected_cycle_length * (1 - tolerance_percent / 100.0):.1f} days after the previous cycle low.") # Display calculated minimum interval
-    st.write("Red markers on the chart indicate potential cycle lows identified by this method.")
+    st.write("This tool identifies potential cycle lows by finding local minimums and ensuring they are spaced out by approximately an 'Expected Cycle Length'.")
+    st.write(f"The **Lookback Window** ({lookback_window} days) determines how local minimums are detected.")
+    st.write(f"The **Expected Cycle Length** is set to {expected_cycle_length} days, with a **Tolerance** of {tolerance_percent}%.")
+    st.write(f"The tool aims to find cycle lows that occur roughly every {expected_cycle_length} days (+/- {tolerance_percent}%).")
+    st.write("For each potential low, it checks if it's a local minimum and if enough time has passed since the *last detected cycle low* (at least approximately {expected_cycle_length * (1 - tolerance_percent / 100.0):.1f} days).")
+    st.write("Red markers indicate potential cycle lows within a cycle period, spaced out by the defined cycle length.")
     st.write("**Important Considerations:**")
-    st.write("- **Subjectivity:** Cycle low detection is not an exact science. This tool provides a visual aid, but user judgment is crucial.")
-    st.write("- **Timeframe Dependency:** Cycle lows are relative to the timeframe (daily in this case).")
-    st.write("- **Context is Key:** Consider other factors like market trends, volume, and fundamental analysis.")
-    st.write("- **Simplified Algorithm:** This tool uses a basic algorithm.  Cycle length is an approximation and market cycles are not perfectly regular.")
-    st.write("Experiment with different lookback windows, cycle lengths, and tolerances to see how the tool identifies potential cycle lows.")
+    st.write("- **Cycle Period, not just one low:** The goal is to identify *multiple* cycle lows that define cycle periods.")
+    st.write("- **Subjectivity:** Cycle low detection is not exact. This tool is a visual aid.")
+    st.write("- **Timeframe Dependency:** Daily timeframe assumed. Adjust parameters for other timeframes.")
+    st.write("- **Context is Key:** Consider other market factors.")
+    st.write("- **Simplified Algorithm:** Basic algorithm, cycle length is approximate.")
+    st.write("Experiment with parameters to refine cycle low detection for your data.")
