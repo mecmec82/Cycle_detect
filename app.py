@@ -51,38 +51,51 @@ def load_data_from_csv(uploaded_file):
         return None
 
 
-def detect_cycle_lows(df, window, expected_cycle_length, tolerance_percent):
+def detect_cycle_lows(df, lookback_window, expected_cycle_length, tolerance_percent):
     """
-    Detects potential cycle lows with a minimum time separation, allowing for multiple lows.
-    (DEBUGGING VERSION WITH PRINT STATEMENTS)
+    Detects potential cycle lows using a windowed iteration approach with cycle length constraints.
     """
     cycle_low_dates = []
     last_cycle_low_date = None
     min_cycle_interval_days = expected_cycle_length * (1 - tolerance_percent / 100.0)
-    print(f"Minimum cycle interval (days): {min_cycle_interval_days:.2f}") # Debug: Show calculated interval
+    data_len = len(df)
 
-    for i in range(window, len(df)):
-        current_date = df.index[i]
-        current_low = df['Low'][i]
-        window_data = df['Low'][i-window:i+1]
-        is_local_low = (current_low == window_data.min())
+    # Iterate with a step size related to expected cycle length
+    step_size = max(1, int(expected_cycle_length / 2))  # Step roughly half cycle length, but at least 1
+    start_index = lookback_window # Start after the initial lookback window
+    for i in range(start_index, data_len, step_size):
+        # Define the window for this iteration
+        window_start = max(0, i - lookback_window) # Ensure window start is not negative
+        window_end = min(data_len, i + lookback_window + 1) # Ensure window end is within data bounds
+        window_df = df[window_start:window_end]
 
-        print(f"\nDate: {current_date.strftime('%Y-%m-%d')}, Low: {current_low:.2f}, Min in Window: {window_data.min():.2f}, Local Low: {is_local_low}") # Debug: Track current point info
+        if window_df.empty: # Handle empty window case (shouldn't happen often, but good to check)
+            continue
 
-        if is_local_low:
-            if last_cycle_low_date is None:
-                cycle_low_dates.append(current_date)
-                last_cycle_low_date = current_date
-                print(f"  - First cycle low detected: {current_date.strftime('%Y-%m-%d')}") # Debug: First low
+        # Find the date of the minimum 'Low' within this window
+        min_low_date_in_window = window_df['Low'].idxmin() # Date of min 'Low' in window
+        min_low_price_in_window = window_df.loc[min_low_date_in_window, 'Low'] # Price of min 'Low'
+
+        # Check if this minimum is a local low (using original lookback window around the min_low_date)
+        local_window_start_index = df.index.get_loc(min_low_date_in_window) # Get index by date
+        local_lookback_start = max(0, local_window_start_index - lookback_window)
+        local_lookback_end = min(data_len, local_window_start_index + lookback_window + 1)
+        local_lookback_window_data = df['Low'][local_lookback_start:local_lookback_end]
+
+        is_local_low = (min_low_price_in_window == local_lookback_window_data.min())
+
+
+        if is_local_low: # Found a local minimum in the window
+            candidate_low_date = min_low_date_in_window
+
+            if last_cycle_low_date is None: # First cycle low
+                cycle_low_dates.append(candidate_low_date)
+                last_cycle_low_date = candidate_low_date
             else:
-                time_since_last_low = (current_date - last_cycle_low_date).days
-                print(f"  - Time since last low: {time_since_last_low} days") # Debug: Time since last
-                if time_since_last_low >= min_cycle_interval_days:
-                    cycle_low_dates.append(current_date)
-                    last_cycle_low_date = current_date
-                    print(f"  - Cycle low detected: {current_date.strftime('%Y-%m-%d')}, Interval OK") # Debug: Low detected, interval OK
-                else:
-                    print(f"  - Local low, but interval too short ({time_since_last_low} < {min_cycle_interval_days:.2f} days). Skipped.") # Debug: Low skipped due to interval
+                time_since_last_low = (candidate_low_date - last_cycle_low_date).days
+                if time_since_last_low >= min_cycle_interval_days: # Check minimum interval
+                    cycle_low_dates.append(candidate_low_date)
+                    last_cycle_low_date = candidate_low_date
 
     return cycle_low_dates
 
