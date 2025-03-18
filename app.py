@@ -125,7 +125,7 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 
 # Streamlit App
-st.title('BTC Price with Color-Swappable Cycle/Half-Cycle Lows')
+st.title('BTC Price with Extended Cycle Background Colors')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
@@ -210,10 +210,10 @@ if df is not None: # Proceed only if data is loaded successfully
     cycle_low_color = 'green' if not swap_colors else 'magenta' # Default green, swapped to magenta if checked
     half_cycle_low_color = 'magenta' if not swap_colors else 'green' # Default magenta, swapped to green if checked
 
-    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label='Cycle Lows') # Green or magenta dots for cycle lows
+    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label) # Green or magenta dots for cycle lows
 
     if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
-        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label='Half-Cycle Lows') # Magenta or green dots for half-cycle lows
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label) # Magenta or green dots for half-cycle lows
 
     ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
 
@@ -232,6 +232,15 @@ if df is not None: # Proceed only if data is loaded successfully
 
         ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2) # Light green before midpoint
         ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2) # Light pink after midpoint
+
+    # Background color after last low
+    last_low_date = all_lows_df['Date'].iloc[-1]
+    today_date = df['Date'].max() # Use the last date in the dataframe as "today" for consistency with data range
+    time_since_last_low = today_date - last_low_date
+    threshold_time = pd.Timedelta(days=expected_period_days / 4)
+
+    final_bg_color = 'lightgreen' if time_since_last_low < threshold_time else 'lightpink'
+    ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
 
 
     ax.set_title(f'BTC/USD Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Dynamic title
