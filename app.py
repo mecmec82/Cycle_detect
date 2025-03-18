@@ -125,11 +125,11 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 
 # Streamlit App
-st.title('BTC Price with Cycle Lows & Highs (L/R Labels) - Coinbase API')
+st.title('Cycle Lows')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
-timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18, 24, 48, 72, 96], index=3) # Added timeframe selectbox
+timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18, 24, 48, 72, 96], index=2) # Added timeframe selectbox
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
 show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
