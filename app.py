@@ -5,7 +5,8 @@ import numpy as np
 
 def find_local_minima(df, window_size_days=60, tolerance_days=6):
     """
-    Finds local minima (cycle lows) in the 'Close' price data of a DataFrame.
+    Finds local minima (cycle lows) in the 'Close' price data of a DataFrame,
+    ensuring the time difference between consecutive minima is within the specified range.
 
     Args:
         df (pd.DataFrame): DataFrame with 'Date' (datetime) and 'Close' (float) columns.
@@ -17,6 +18,7 @@ def find_local_minima(df, window_size_days=60, tolerance_days=6):
     """
     minima_dates = []
     minima_prices = []
+    last_minima_date = None
 
     for i in range(len(df)):
         current_date = df['Date'].iloc[i]
@@ -31,8 +33,23 @@ def find_local_minima(df, window_size_days=60, tolerance_days=6):
         if not window_df.empty:
             min_price_in_window = window_df['Close'].min()
             if current_price == min_price_in_window:
-                minima_dates.append(current_date)
-                minima_prices.append(current_price)
+                # Check time difference from the last minima
+                if last_minima_date is None:
+                    minima_dates.append(current_date)
+                    minima_prices.append(current_price)
+                    last_minima_date = current_date
+                else:
+                    time_diff = current_date - last_minima_date
+                    lower_bound = pd.Timedelta(days=window_size_days - tolerance_days)
+                    upper_bound = pd.Timedelta(days=window_size_days + tolerance_days)
+
+                    if lower_bound <= time_diff <= upper_bound:
+                        minima_dates.append(current_date)
+                        minima_prices.append(current_price)
+                        last_minima_date = current_date
+                    else:
+                        # Not within the expected cycle range, skip this minima
+                        pass
 
     minima_df = pd.DataFrame({'Date': minima_dates, 'Close': minima_prices})
     return minima_df
