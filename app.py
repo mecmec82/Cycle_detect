@@ -45,8 +45,7 @@ def main():
         uploaded_file = st.sidebar.file_uploader("Upload Stock Data CSV file", type=["csv"])
         if uploaded_file is not None:
             try:
-                df = pd.read_csv(uploaded_file, parse_dates=['Date']) # Attempt to parse 'Date' column as dates
-
+                df = pd.read_csv(uploaded_file) # Read CSV without parse_dates initially
                 st.sidebar.success("Stock data CSV uploaded successfully!")
 
                 # Column selection for stock data - more specific names
@@ -54,8 +53,11 @@ def main():
                 price_col_name = st.sidebar.selectbox("Select Price Column (e.g., 'Close')", df.columns) # No default index, user must select
 
                 if date_col_name and price_col_name: # Ensure both are selected
-                    time = df[date_col_name].to_numpy()
+                    # Explicitly convert the Date column to datetime objects
+                    df['Date'] = pd.to_datetime(df[date_col_name]) # Ensure 'Date' column is datetime
+                    time = df['Date'].to_numpy() # Use the standardized 'Date' column for time
                     data = df[price_col_name].to_numpy()
+
                 else:
                     st.error("Please select both Date and Price columns.")
                     data = None
@@ -75,7 +77,11 @@ def main():
         # Display Data Summary
         st.subheader("Stock Data Summary")
         st.write(f"Number of data points (days): {len(data)}")
-        st.write(f"Time Range: {time[0].strftime('%Y-%m-%d')} to {time[-1].strftime('%Y-%m-%d')}") # Display date range
+        # Ensure time[0] and time[-1] are datetime objects before using strftime
+        if isinstance(time[0], np.datetime64):
+            st.write(f"Time Range: {pd.to_datetime(time[0]).strftime('%Y-%m-%d')} to {pd.to_datetime(time[-1]).strftime('%Y-%m-%d')}") # Display date range, convert np.datetime64 to pandas datetime for strftime
+        else:
+            st.write("Time Range: Date range display unavailable due to date format issues.") # Fallback message
         st.write(f"Sampling Rate: Daily (1 sample per day)") # Clarify sampling rate
 
         # Plot Time Domain Data
