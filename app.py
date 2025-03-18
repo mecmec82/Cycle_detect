@@ -54,28 +54,31 @@ def load_data_from_csv(uploaded_file):
 def detect_cycle_lows(df, lookback_window, expected_cycle_length, tolerance_percent):
     """
     Detects cycle lows using iterative forward search based on expected cycle length.
+    (DEBUGGING VERSION WITH PRINT STATEMENTS - ITERATIVE SEARCH)
     """
     cycle_low_dates = []
     last_cycle_low_date = None
     tolerance_days = timedelta(days=expected_cycle_length * (tolerance_percent / 100.0))
+    print(f"Tolerance days: {tolerance_days.days}") # Debug: Tolerance in days
 
     # 1. Find the first cycle low in the initial lookback window
-    first_window_df = df.iloc[:lookback_window+1] # Include current point
+    first_window_df = df.iloc[:lookback_window+1]
     if not first_window_df.empty:
         initial_low_date = first_window_df['Low'].idxmin()
         initial_low_price = first_window_df.loc[initial_low_date, 'Low']
 
-        # Verify if it's a local low within the lookback window (centered around initial_low_date)
+        # Verify local low
         initial_local_start_index = df.index.get_loc(initial_low_date)
         initial_local_lookback_start = max(0, initial_local_start_index - lookback_window)
         initial_local_lookback_end = min(len(df), initial_local_start_index + lookback_window + 1)
         initial_local_lookback_data = df['Low'][initial_local_lookback_start:initial_local_lookback_end]
-        if initial_low_price == initial_local_lookback_data.min(): # Confirm local low
+        if initial_low_price == initial_local_lookback_data.min():
             cycle_low_dates.append(initial_low_date)
             last_cycle_low_date = initial_low_date
+            print(f"Initial cycle low found: {initial_low_date.strftime('%Y-%m-%d')}") # Debug: Initial low found
         else:
-            last_cycle_low_date = initial_low_date # Still set even if not local low, to start search from here.  May need to refine this.
-
+            last_cycle_low_date = initial_low_date # Still set for search, may need refinement
+            print(f"Initial window min NOT a local low at {initial_low_date.strftime('%Y-%m-%d')}, but continuing search.") # Debug: Initial not local, continuing
 
     # 2. Iteratively search for subsequent lows
     if last_cycle_low_date is not None:
@@ -84,30 +87,34 @@ def detect_cycle_lows(df, lookback_window, expected_cycle_length, tolerance_perc
             expected_next_low_date = current_low_date + timedelta(days=expected_cycle_length)
             search_window_start_date = expected_next_low_date - tolerance_days
             search_window_end_date = expected_next_low_date + tolerance_days
+            print(f"\nSearching for next low. Current Low Date: {current_low_date.strftime('%Y-%m-%d')}, Expected Next: {expected_next_low_date.strftime('%Y-%m-%d')}, Search Window: {search_window_start_date.strftime('%Y-%m-%d')} to {search_window_end_date.strftime('%Y-%m-%d')}") # Debug: Search window
 
-            # Define search window DataFrame (handle cases where window goes beyond data range)
             search_window_df = df[search_window_start_date:search_window_end_date]
 
-            if search_window_df.empty: # No data in search window, stop searching forward
+            if search_window_df.empty:
+                print("Search window empty. Stopping iterative search.") # Debug: Empty search window
                 break
 
             next_low_date_candidate = search_window_df['Low'].idxmin()
             next_low_price_candidate = search_window_df.loc[next_low_date_candidate, 'Low']
 
-            # Verify local low in a lookback window around candidate
+            # Verify local low
             local_start_index = df.index.get_loc(next_low_date_candidate)
             local_lookback_start = max(0, local_start_index - lookback_window)
             local_lookback_end = min(len(df), local_start_index + lookback_window + 1)
             local_lookback_data = df['Low'][local_lookback_start:local_lookback_end]
 
-            if next_low_price_candidate == local_lookback_data.min(): # Confirmed local low
-                if next_low_date_candidate > current_low_date: # Ensure it's a *later* low
+            if next_low_price_candidate == local_lookback_data.min():
+                if next_low_date_candidate > current_low_date:
                     cycle_low_dates.append(next_low_date_candidate)
-                    current_low_date = next_low_date_candidate # Move forward from this new low
+                    current_low_date = next_low_date_candidate
+                    print(f"  - Cycle low found: {next_low_date_candidate.strftime('%Y-%m-%d')}") # Debug: Cycle low found in iteration
                 else:
-                    break # Found a low at or before current, something wrong, stop.  Maybe data issue?
+                    print("  - Found low NOT after current low. Stopping iterative search.") # Debug: Low not after current
+                    break
             else:
-                break # No local low found in search window, stop searching forward
+                print("  - No local low found in search window. Stopping iterative search.") # Debug: No local low in window
+                break
 
     return cycle_low_dates
 
