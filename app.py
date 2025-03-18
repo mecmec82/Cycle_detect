@@ -3,53 +3,35 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-def find_local_minima(df, window_size_days=60, tolerance_days=6):
+def find_local_minima_non_overlapping(df, window_size_days=66):
     """
-    Finds local minima (cycle lows) in the 'Close' price data of a DataFrame,
-    ensuring the time difference between consecutive minima is within the specified range.
+    Finds local minima (cycle lows) in non-overlapping windows of the 'Close' price data.
 
     Args:
         df (pd.DataFrame): DataFrame with 'Date' (datetime) and 'Close' (float) columns.
-        window_size_days (int): Expected cycle length in days.
-        tolerance_days (int): Tolerance for cycle length variation in days.
+        window_size_days (int): Size of each non-overlapping window in days.
 
     Returns:
         pd.DataFrame: DataFrame containing dates and 'Close' prices of local minima.
     """
     minima_dates = []
     minima_prices = []
-    last_minima_date = None
+    start_index = 0
+    window_delta = pd.Timedelta(days=window_size_days)
 
-    for i in range(len(df)):
-        current_date = df['Date'].iloc[i]
-        current_price = df['Close'].iloc[i]
+    while start_index < len(df):
+        start_date = df['Date'].iloc[start_index]
+        end_date = start_date + window_delta
 
-        # Define the window for checking local minima
-        start_date = current_date - pd.Timedelta(days=window_size_days + tolerance_days)
-        end_date = current_date + pd.Timedelta(days=window_size_days + tolerance_days)
-
-        window_df = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
+        window_df = df[(df['Date'] >= start_date) & (df['Date'] < end_date)] # strictly less than end_date to avoid overlap
 
         if not window_df.empty:
-            min_price_in_window = window_df['Close'].min()
-            if current_price == min_price_in_window:
-                # Check time difference from the last minima
-                if last_minima_date is None:
-                    minima_dates.append(current_date)
-                    minima_prices.append(current_price)
-                    last_minima_date = current_date
-                else:
-                    time_diff = current_date - last_minima_date
-                    lower_bound = pd.Timedelta(days=window_size_days - tolerance_days)
-                    upper_bound = pd.Timedelta(days=window_size_days + tolerance_days)
-
-                    if lower_bound <= time_diff <= upper_bound:
-                        minima_dates.append(current_date)
-                        minima_prices.append(current_price)
-                        last_minima_date = current_date
-                    else:
-                        # Not within the expected cycle range, skip this minima
-                        pass
+            min_price_index = window_df['Close'].idxmin() # index of min price in window_df
+            minima_dates.append(df['Date'].loc[min_price_index]) # use original df index to get date
+            minima_prices.append(df['Close'].loc[min_price_index]) # use original df index to get price
+            start_index = df.index.get_loc(window_df['Date'].iloc[-1].name) + 1 # move start_index to after the window
+        else:
+            break # No more data in window, stop
 
     minima_df = pd.DataFrame({'Date': minima_dates, 'Close': minima_prices})
     return minima_df
@@ -80,11 +62,12 @@ if uploaded_file is not None:
 
             # Sidebar for parameters
             st.sidebar.header("Parameter Settings")
-            window_size_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
+            expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
             tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
+            window_size_days = expected_period_days + tolerance_days # Window size is now calculated
 
-            # Find local minima with adjustable parameters
-            minima_df = find_local_minima(df.copy(), window_size_days, tolerance_days)
+            # Find local minima with non-overlapping windows
+            minima_df = find_local_minima_non_overlapping(df.copy(), window_size_days)
 
             st.sidebar.write(f"Number of local minima found: {len(minima_df)}")
 
