@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import talib
+import pandas_ta as ta  # Import pandas_ta
 import matplotlib.pyplot as plt
 
 # --- Function Definitions ---
@@ -17,21 +17,33 @@ def load_data_from_csv(uploaded_file):
         return None
 
 def calculate_indicators(df):
-    """Calculates technical indicators using ta-lib."""
-    df['RSI'] = talib.RSI(df['Close'], timeperiod=14)
-    df['MACD'], df['MACD_Signal'], df['MACD_Hist'] = talib.MACD(df['Close'], fastperiod=12, slowperiod=26, signalperiod=9)
-    # Add more indicators as needed (e.g., Bollinger Bands, AD Line - if you have necessary data)
+    """Calculates technical indicators using pandas_ta."""
+    df['RSI'] = df['Close'].ta.rsi(length=14)  # RSI using pandas_ta
+    macd_indicator = df.ta.macd(fast=12, slow=26, signal=9) # MACD
+    df = pd.concat([df, macd_indicator], axis=1)
+    df.rename(columns={'MACD_12_26_9': 'MACD', 'MACDh_12_26_9': 'MACD_Hist', 'MACDs_12_26_9': 'MACD_Signal'}, inplace=True)
+
+    # Example of Bollinger Bands (optional - uncomment to include)
+    # bbands_indicator = df.ta.bbands(length=20, std=2)
+    # df = pd.concat([df, bbands_indicator], axis=1)
+    # df.rename(columns={'BBL_20_2.0': 'BBL', 'BBM_20_2.0': 'BBM', 'BBU_20_2.0': 'BBU', 'BBB_20_2.0': 'BBB', 'BBP_20_2.0': 'BBP'}, inplace=True)
+
     return df
 
 def detect_cycle_low_signals(df):
     """Detects potential cycle low signals based on indicators (example rules)."""
     df['CycleLowSignal'] = False # Initialize signal column
 
-    # Example Rule: RSI oversold and MACD bullish crossover
+    # Example Rule 1: RSI oversold and MACD bullish crossover
     oversold_rsi = df['RSI'] < 30
     macd_crossover = (df['MACD'] > df['MACD_Signal']) & (df['MACD'].shift(1) <= df['MACD_Signal'].shift(1))
 
-    df.loc[oversold_rsi & macd_crossover, 'CycleLowSignal'] = True
+    # Example Rule 2:  Price below lower Bollinger Band (if you added BBands)
+    # below_lower_bb = df['Close'] < df['BBL']
+
+    # Combine rules (you can adjust the logic as needed - using OR here)
+    df.loc[oversold_rsi & macd_crossover, 'CycleLowSignal'] = True # Example: Both must be true
+
     return df
 
 def plot_data_with_signals(df, symbol):
