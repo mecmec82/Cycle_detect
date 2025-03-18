@@ -125,7 +125,7 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 
 # Streamlit App
-st.title('BTC Price with Extended Cycle Background Colors')
+#st.title('BTC Price with Extended Cycle Background Colors')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
