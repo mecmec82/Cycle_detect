@@ -147,6 +147,8 @@ def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the ca
     since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit_days) # Use limit_days
     since_timestamp = exchange.parse8601(since_datetime.isoformat())
 
+    st.sidebar.write(f"start date: {since_datetime}")
+
     try:
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=since_timestamp, limit=limit)
         df = pd.DataFrame(ohlcv, columns=['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
@@ -195,7 +197,7 @@ if df is not None: # Proceed only if data is loaded successfully
     st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
-    st.sidebar.write(f"start date: {since_datetime}")
+    
 
 
     # Identify overlapping dates and filter half-cycle minima to exclude overlaps
