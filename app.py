@@ -165,7 +165,8 @@ def load_data_from_coinbase(): # Pass timeframe_months to the cached function
         return None
 
 
-df = load_data_from_coinbase(timeframe_months) # Pass timeframe_months to data loading function
+#df = load_data_from_coinbase(timeframe_months) # Pass timeframe_months to data loading function
+df = load_data_from_coinbase() # Pass timeframe_months to data loading function
 
 if df is not None: # Proceed only if data is loaded successfully
 
