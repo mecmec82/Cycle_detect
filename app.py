@@ -201,7 +201,6 @@ if df is not None: # Proceed only if data is loaded successfully
     st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
-    
 
 
     # Identify overlapping dates and filter half-cycle minima to exclude overlaps
@@ -249,8 +248,14 @@ if df is not None: # Proceed only if data is loaded successfully
     final_bg_color = 'lightgreen' if time_since_last_low < threshold_time else 'lightpink'
     ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
 
+    # Calculate and plot expected next low line
+    if not all_lows_df.empty:
+        most_recent_low_date = all_lows_df['Date'].iloc[-1]
+        expected_next_low_date = most_recent_low_date + pd.Timedelta(days=expected_period_days)
+        ax.axvline(x=expected_next_low_date, color='grey', linestyle='--', label='Expected Next Low') # Add vertical line
 
-    ax.set_title(f'BTC/USD Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Dynamic title
+
+    ax.set_title(f'{symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Dynamic title
     ax.set_xlabel('Date')
     ax.set_ylabel('Price')
     ax.legend()
