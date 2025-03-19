@@ -5,7 +5,123 @@ import numpy as np
 import ccxt
 import datetime
 
-# ... (Your functions: find_local_minima_simplified, find_half_cycle_lows_relative_to_cycle_lows, find_cycle_highs - no changes needed) ...
+def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
+    """
+    Finds local minima using a simplified moving window approach.
+    """
+    if df.empty: # **ADD THIS CHECK: Handle empty input DataFrame**
+        return pd.DataFrame({'Date': [], 'Close': []}) # Return empty DataFrame if input df is empty
+
+    minima_dates = []
+    minima_prices = []
+    last_low_date = None
+
+    window_size_initial_days = expected_period_days + tolerance_days
+
+    # First Window (from start date or start of data)
+    if start_date is None:
+        first_start_date = df['Date'].iloc[0]
+    else:
+        first_start_date = start_date
+
+    first_end_date = first_start_date + pd.Timedelta(days=window_size_initial_days)
+    first_window_df = df[(df['Date'] >= first_start_date) & (df['Date'] <= first_end_date)]
+
+    if not first_window_df.empty:
+        first_min_price_index = first_window_df['Close'].idxmin()
+        first_minima_date = df['Date'].loc[first_min_price_index]
+        first_minima_price = df['Close'].loc[first_min_price_index]
+
+        minima_dates.append(first_minima_date)
+        minima_prices.append(first_minima_price)
+        last_low_date = first_minima_date
+    else:
+        return pd.DataFrame({'Date': minima_dates, 'Close': minima_prices}) # No minima found in first window, return empty DataFrame
+
+    # Subsequent Windows
+    while True:
+        next_start_date = last_low_date + pd.Timedelta(days=expected_period_days - tolerance_days)
+        next_end_date = last_low_date + pd.Timedelta(days=expected_period_days + tolerance_days)
+        current_window_df = df[(df['Date'] >= next_start_date) & (df['Date'] <= next_end_date)]
+
+        if not current_window_df.empty:
+            min_price_index_in_window = current_window_df['Close'].idxmin()
+            current_minima_date = df['Date'].loc[min_price_index_in_window]
+            current_minima_price = df['Close'].loc[min_price_index_in_window]
+
+            minima_dates.append(current_minima_date)
+            minima_prices.append(current_minima_price)
+            last_low_date = current_minima_date
+        else:
+            break # No more data in window, stop
+
+    minima_df = pd.DataFrame({'Date': minima_dates, 'Close': minima_prices})
+    return minima_df
+
+
+def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_period_days=60, tolerance_days=6):
+    """
+    Finds half-cycle lows relative to existing cycle lows.
+    """
+    half_cycle_minima_dates = []
+    half_cycle_minima_prices = []
+
+    for index, cycle_low_row in cycle_lows_df.iterrows():
+        cycle_low_date = cycle_low_row['Date']
+
+        half_cycle_start_date = cycle_low_date + pd.Timedelta(days=(expected_period_days / 2) - (tolerance_days / 2))
+        half_cycle_end_date = cycle_low_date + pd.Timedelta(days=(expected_period_days / 2) + (tolerance_days / 2))
+
+        half_cycle_window_df = df[(df['Date'] >= half_cycle_start_date) & (df['Date'] <= half_cycle_end_date)]
+
+        if not half_cycle_window_df.empty:
+            half_cycle_min_price_index = half_cycle_window_df['Close'].idxmin()
+            half_cycle_minima_date = df['Date'].loc[half_cycle_min_price_index]
+            half_cycle_minima_price = df['Close'].loc[half_cycle_min_price_index]
+
+            half_cycle_minima_dates.append(half_cycle_minima_date)
+            half_cycle_minima_prices.append(half_cycle_minima_price)
+
+    half_cycle_minima_df = pd.DataFrame({'Date': half_cycle_minima_dates, 'Close': half_cycle_minima_prices})
+    return half_cycle_minima_df
+
+def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
+    """
+    Finds cycle highs (highest highs) between cycle and half-cycle lows and labels them 'L' or 'R'.
+    """
+    cycle_high_dates = []
+    cycle_high_prices = []
+    cycle_high_labels = [] # List to store 'L' or 'R' labels
+
+    all_lows_df = pd.concat([cycle_lows_df, half_cycle_lows_df]).sort_values(by='Date').reset_index(drop=True)
+
+    for i in range(len(all_lows_df) - 1):
+        start_date = all_lows_df['Date'].iloc[i]
+        end_date = all_lows_df['Date'].iloc[i+1]
+
+        high_window_df = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
+
+        if not high_window_df.empty:
+            max_high_price_index = high_window_df['High'].idxmax()
+            cycle_high_date = df['Date'].loc[max_high_price_index]
+            cycle_high_price = df['High'].loc[max_high_price_index]
+
+            cycle_high_dates.append(cycle_high_date)
+            cycle_high_prices.append(cycle_high_price)
+
+            # Calculate time differences and label
+            time_to_high_from_low = cycle_high_date - start_date
+            total_time_between_lows = end_date - start_date
+            midpoint_time = total_time_between_lows / 2
+
+            if time_to_high_from_low > midpoint_time:
+                cycle_high_labels.append('R') # Right/Late
+            else:
+                cycle_high_labels.append('L') # Left/Early
+
+    cycle_highs_df = pd.DataFrame({'Date': cycle_high_dates, 'High': cycle_high_prices, 'Label': cycle_high_labels}) # Include labels in df
+    return cycle_highs_df, cycle_high_labels # Return both df and labels
+
 
 
 # Streamlit App
@@ -44,7 +160,7 @@ def load_data_from_coinbase(symbol): # **MODIFIED: Accept symbol as argument**
         df['Date'] = pd.to_datetime(df['Timestamp'], unit='ms')
         df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
 
-        st.sidebar.write(f"len: {len(df)}")
+        st.sidebar.write(f"Data length for {symbol}: {len(df)}")
         return df
     except ccxt.ExchangeError as e:
         st.error(f" API error for symbol '{symbol}': {e}") # **Include symbol in error message**
@@ -60,7 +176,27 @@ df = load_data_from_coinbase(selected_symbol) # **MODIFIED: Pass selected_symbol
 
 if df is not None: # Proceed only if data is loaded successfully
 
-    # ... (Rest of your data processing code: sorting, finding minima, highs - no changes needed) ...
+    # Sort DataFrame by date in ascending order (oldest to newest) - already sorted by API but good practice
+    df = df.sort_values(by='Date')
+    df = df.reset_index(drop=True)
+
+    # Find local minima (full cycle)
+    minima_df = find_local_minima_simplified(
+        df.copy(),
+        expected_period_days=expected_period_days,
+        tolerance_days=tolerance_days
+    )
+
+    # Find half-cycle lows relative to cycle lows
+    half_cycle_minima_df = find_half_cycle_lows_relative_to_cycle_lows(
+        df.copy(),
+        minima_df, # Pass cycle lows df
+        expected_period_days=expected_period_days,
+        tolerance_days=tolerance_days
+    )
+
+    # Find cycle highs and labels
+    cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
 
 
     cycle_label = "Cycle Lows"
@@ -91,8 +227,7 @@ if df is not None: # Proceed only if data is loaded successfully
     ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs')
 
     for index, row in cycle_highs_df.iterrows():
-        ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=9, ha='left', va='bottom')
-
+        ax.text(row['Date'], row['High'], row['Label'], row['Label'], color='black', fontsize=9, ha='left', va='bottom') # corrected to use row['Label']
 
     all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True)
     for i in range(len(all_lows_df) - 1):
