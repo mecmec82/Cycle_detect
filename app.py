@@ -276,7 +276,7 @@ if df is not None: # Proceed only if data is loaded successfully
         expected_next_half_cycle_low_date_str = expected_next_half_cycle_low_date.strftime('%Y-%m-%d') # Format date to string
         ax.axvline(x=expected_next_half_cycle_low_date, color='grey', linestyle=':', label='Expected Next Half-Cycle Low') # Dotted line for half-cycle
         ax.annotate(f'Exp. Half-Cycle Low\n{expected_next_half_cycle_low_date_str}', xy=(expected_next_half_cycle_low_date,  df['Close'].max()), xytext=(10, 0), textcoords='offset points',
-                    fontsize=10, color='grey', ha='left', va='top') # Annotation for Half-Cycle line with date
+                    fontsize=10, color='grey', ha='left', va='bottom') # Annotation for Half-Cycle line with date
 
 
     ax.set_title(f'{symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}', fontsize=16) # MODIFIED: Increased title fontsize
