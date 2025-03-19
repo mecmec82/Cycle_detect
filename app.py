@@ -209,7 +209,7 @@ if df is not None: # Proceed only if data is loaded successfully
 
 
     # Plotting with Matplotlib and display in Streamlit
-    fig, ax = plt.subplots(figsize=(14, 7))
+    fig, ax = plt.subplots(figsize=(21, 10.5)) # MODIFIED: Increased figsize by 50%
     ax.plot(df['Date'], df['Close'], label='Price', color='blue')
 
     # Conditional color assignment based on swap_colors checkbox
