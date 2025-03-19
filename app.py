@@ -142,7 +142,8 @@ def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the ca
     exchange = ccxt.coinbase()
     symbol = 'BTC/USD'
     timeframe = '1d'
-    limit_days = timeframe_months * 31  # Approximate days for selected months (more than enough)
+    #limit_days = timeframe_months * 31  # Approximate days for selected months (more than enough)
+    limit_days = 1000
     limit = limit_days # Use calculated limit
     since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit_days) # Use limit_days
     since_timestamp = exchange.parse8601(since_datetime.isoformat())
