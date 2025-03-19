@@ -8,10 +8,8 @@ import datetime
 def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
     """
     Finds local minima using a simplified moving window approach.
+    (No changes needed in this function)
     """
-    if df.empty: # **ADD THIS CHECK: Handle empty input DataFrame**
-        return pd.DataFrame({'Date': [], 'Close': []}) # Return empty DataFrame if input df is empty
-
     minima_dates = []
     minima_prices = []
     last_low_date = None
@@ -36,7 +34,7 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
         minima_prices.append(first_minima_price)
         last_low_date = first_minima_date
     else:
-        return pd.DataFrame({'Date': minima_dates, 'Close': minima_prices}) # No minima found in first window, return empty DataFrame
+        return pd.DataFrame({'Date': minima_dates, 'Close': minima_prices}) # No minima found in first window, return empty
 
     # Subsequent Windows
     while True:
@@ -62,6 +60,7 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
 def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_period_days=60, tolerance_days=6):
     """
     Finds half-cycle lows relative to existing cycle lows.
+    (No changes needed in this function)
     """
     half_cycle_minima_dates = []
     half_cycle_minima_prices = []
@@ -88,6 +87,7 @@ def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_peri
 def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     """
     Finds cycle highs (highest highs) between cycle and half-cycle lows and labels them 'L' or 'R'.
+    (No changes needed in this function)
     """
     cycle_high_dates = []
     cycle_high_prices = []
@@ -125,54 +125,49 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 
 # Streamlit App
-#st.title('BTC Price with Extended Cycle Background Colors') # Removed title - can be dynamic later
+#st.title('BTC Price with Extended Cycle Background Colors')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
-
-# **NEW: Symbol Input Box**
-default_symbol = 'BTC/USD' # Set a default symbol
-symbol_input = st.sidebar.text_input("Enter Trading Symbol (e.g., BTC/USD)", default_symbol)
-selected_symbol = symbol_input.upper() # Convert input to uppercase for consistency
-
-
+symbol = st.text_input("Symbol", "BTC/USD")
+#timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18, 24, 48, 72, 96], index=3) # Added timeframe selectbox
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
-show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True)
-swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
+show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
+swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False) # NEW: Control to swap colors
 
 
 # Fetch data from Coinbase API
-@st.cache_data(ttl=3600, persist=True)
-#def load_data_from_coinbase(): # Removed - was before symbol input
-def load_data_from_coinbase(symbol): # **MODIFIED: Accept symbol as argument**
+@st.cache_data(ttl=3600, persist=True) # Cache data for 1 hour, use persist=True for session-based caching if needed
+#def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the cached function
+def load_data_from_coinbase(symbol): # Pass timeframe_months to the cached function
     exchange = ccxt.coinbase()
-    #symbol = 'BTC/USD' # Removed - using input symbol now
+    #symbol = 'BTC/USD'
     timeframe = '1d'
+    #limit_days = timeframe_months * 31  # Approximate days for selected months (more than enough)
     limit_days = 300
-    limit = limit_days
-    since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit_days)
+    limit = limit_days # Use calculated limit
+    since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit_days) # Use limit_days
     since_timestamp = exchange.parse8601(since_datetime.isoformat())
 
     try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=since_timestamp, limit=limit) # **Use input symbol**
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=since_timestamp, limit=limit)
         df = pd.DataFrame(ohlcv, columns=['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
         df['Date'] = pd.to_datetime(df['Timestamp'], unit='ms')
-        df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
+        df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']] # Reorder columns
 
-        st.sidebar.write(f"Data length for {symbol}: {len(df)}")
+        st.sidebar.write(f"len: {len(df)}")
         return df
     except ccxt.ExchangeError as e:
-        st.error(f" API error for symbol '{symbol}': {e}") # **Include symbol in error message**
+        st.error(f" API error: {e}")
         return None
     except Exception as e:
-        st.error(f"An unexpected error occurred for symbol '{symbol}': {e}") # **Include symbol in error message**
+        st.error(f"An unexpected error occurred: {e}")
         return None
 
 
-#df = load_data_from_coinbase() # Removed - was before symbol input
-df = load_data_from_coinbase(selected_symbol) # **MODIFIED: Pass selected_symbol to data loading function**
-
+#df = load_data_from_coinbase(timeframe_months) # Pass timeframe_months to data loading function
+df = load_data_from_coinbase(symbol) # Pass timeframe_months to data loading function
 
 if df is not None: # Proceed only if data is loaded successfully
 
@@ -203,52 +198,59 @@ if df is not None: # Proceed only if data is loaded successfully
     half_cycle_label = "Half-Cycle Lows"
 
 
-    st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}")
-    st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}")
+    st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}") # Dynamic counts
+    st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
+    
 
 
+    # Identify overlapping dates and filter half-cycle minima to exclude overlaps
     overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
     half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
 
 
-    # Plotting with Matplotlib
+    # Plotting with Matplotlib and display in Streamlit
     fig, ax = plt.subplots(figsize=(14, 7))
     ax.plot(df['Date'], df['Close'], label='Price', color='blue')
 
-    cycle_low_color = 'green' if not swap_colors else 'magenta'
-    half_cycle_low_color = 'magenta' if not swap_colors else 'green'
+    # Conditional color assignment based on swap_colors checkbox
+    cycle_low_color = 'green' if not swap_colors else 'magenta' # Default green, swapped to magenta if checked
+    half_cycle_low_color = 'magenta' if not swap_colors else 'green' # Default magenta, swapped to green if checked
 
-    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label)
+    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label) # Green or magenta dots for cycle lows
 
-    if show_half_cycle:
-        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label)
+    if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label) # Magenta or green dots for half-cycle lows
 
-    ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs')
+    ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
 
+
+    # Add labels to cycle high points
     for index, row in cycle_highs_df.iterrows():
-        ax.text(row['Date'], row['High'], row['Label'], row['Label'], color='black', fontsize=9, ha='left', va='bottom') # corrected to use row['Label']
+        ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=9, ha='left', va='bottom')
 
-    all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True)
+
+    # Add background color spans for half-cycles
+    all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True) # Use no_overlap df
     for i in range(len(all_lows_df) - 1):
         start_date = all_lows_df['Date'].iloc[i]
         end_date = all_lows_df['Date'].iloc[i+1]
         midpoint_date = start_date + (end_date - start_date) / 2
 
-        ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2)
-        ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2)
+        ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2) # Light green before midpoint
+        ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2) # Light pink after midpoint
 
+    # Background color after last low
     last_low_date = all_lows_df['Date'].iloc[-1]
-    today_date = df['Date'].max()
+    today_date = df['Date'].max() # Use the last date in the dataframe as "today" for consistency with data range
     time_since_last_low = today_date - last_low_date
     threshold_time = pd.Timedelta(days=expected_period_days / 4)
 
     final_bg_color = 'lightgreen' if time_since_last_low < threshold_time else 'lightpink'
-    ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2)
+    ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
 
 
-    #ax.set_title(f'BTC/USD Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Old title
-    ax.set_title(f'{selected_symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # **MODIFIED: Dynamic title with selected symbol**
+    ax.set_title(f'BTC/USD Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Dynamic title
     ax.set_xlabel('Date')
     ax.set_ylabel('Price')
     ax.legend()
@@ -259,4 +261,4 @@ if df is not None: # Proceed only if data is loaded successfully
     st.pyplot(fig)
 
 else:
-    st.info("Failed to load data from Coinbase API. Please check for errors in the sidebar and ensure the symbol is valid.") # **Improved info message**
+    st.info("Failed to load data from Coinbase API. Please check for errors in the sidebar.")
