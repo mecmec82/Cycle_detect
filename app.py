@@ -139,7 +139,7 @@ swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 # Fetch data from Coinbase API
 @st.cache_data(ttl=3600, persist=True) # Cache data for 1 hour, use persist=True for session-based caching if needed
 def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the cached function
-    exchange = ccxt.binance()
+    exchange = ccxt.binanceus()
     symbol = 'BTC/USD'
     timeframe = '1d'
     limit_days = timeframe_months * 31  # Approximate days for selected months (more than enough)
