@@ -209,7 +209,7 @@ if df is not None: # Proceed only if data is loaded successfully
 
 
     # Plotting with Matplotlib and display in Streamlit
-    fig, ax = plt.subplots(figsize=(21, 10.5)) # MODIFIED: Increased figsize by 50%
+    fig, ax = plt.subplots(figsize=(14, 7)) # Reverted figsize back to original
     ax.plot(df['Date'], df['Close'], label='Price', color='blue')
 
     # Conditional color assignment based on swap_colors checkbox
@@ -226,7 +226,7 @@ if df is not None: # Proceed only if data is loaded successfully
 
     # Add labels to cycle high points
     for index, row in cycle_highs_df.iterrows():
-        ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=9, ha='left', va='bottom')
+        ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=12, ha='left', va='bottom') # MODIFIED: Increased annotation fontsize
 
 
     # Add background color spans for half-cycles
@@ -255,12 +255,13 @@ if df is not None: # Proceed only if data is loaded successfully
         ax.axvline(x=expected_next_low_date, color='grey', linestyle='--', label='Expected Next Low') # Add vertical line
 
 
-    ax.set_title(f'{symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Dynamic title
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Price')
-    ax.legend()
+    ax.set_title(f'{symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}', fontsize=16) # MODIFIED: Increased title fontsize
+    ax.set_xlabel('Date', fontsize=14) # MODIFIED: Increased xlabel fontsize
+    ax.set_ylabel('Price', fontsize=14) # MODIFIED: Increased ylabel fontsize
+    ax.legend(fontsize=12) # MODIFIED: Increased legend fontsize
     ax.grid(True)
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=45, fontsize=12) # MODIFIED: Increased xticks fontsize
+    plt.yticks(fontsize=12) # MODIFIED: Increased yticks fontsize
     plt.tight_layout()
 
     st.pyplot(fig)
