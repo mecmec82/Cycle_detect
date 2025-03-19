@@ -195,7 +195,7 @@ if df is not None: # Proceed only if data is loaded successfully
     st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
-    st.sidebar.write(f"since_datetime")
+    st.sidebar.write(f"start date: {since_datetime}")
 
 
     # Identify overlapping dates and filter half-cycle minima to exclude overlaps
