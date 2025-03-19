@@ -129,7 +129,7 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
-symbol = st.text_input("Symbol", "BTC/USD")
+symbol = st.sidebar.text_input("Symbol", "BTC/USD")
 #timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18, 24, 48, 72, 96], index=3) # Added timeframe selectbox
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
