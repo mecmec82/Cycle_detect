@@ -230,9 +230,15 @@ if df is not None: # Proceed only if data is loaded successfully
     ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
 
 
-    # Add labels to cycle high points
+    # Add labels to cycle high points - using ax.annotate
     for index, row in cycle_highs_df.iterrows():
-        ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=12, ha='left', va='bottom', textcoords="offset points", xytext=(0,20)) # MODIFIED: xytext=(0, 20) to move labels up
+        ax.annotate(row['Label'], # The text to annotate
+                    xy=(row['Date'], row['High']), # Point to annotate
+                    xytext=(0, 20), # Offset for text from the point
+                    textcoords='offset points', # How xytext is interpreted
+                    ha='center', va='bottom', # Text alignment
+                    fontsize=12,
+                    arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5)) # Optional arrow, removed arrow
 
 
     # Add background color spans for half-cycles
