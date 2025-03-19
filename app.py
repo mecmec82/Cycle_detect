@@ -13,7 +13,6 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
     minima_dates = []
     minima_prices = []
     last_low_date = None
-    confirmed_status = [] # NEW: Track confirmed status
 
     window_size_initial_days = expected_period_days + tolerance_days
 
@@ -33,10 +32,9 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
 
         minima_dates.append(first_minima_date)
         minima_prices.append(first_minima_price)
-        confirmed_status.append(True) # Initially confirmed
         last_low_date = first_minima_date
     else:
-        return pd.DataFrame({'Date': minima_dates, 'Close': minima_prices, 'Confirmed': confirmed_status}) # No minima found in first window, return empty
+        return pd.DataFrame({'Date': minima_dates, 'Close': minima_prices}) # No minima found in first window, return empty
 
     # Subsequent Windows
     while True:
@@ -51,12 +49,11 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
 
             minima_dates.append(current_minima_date)
             minima_prices.append(current_minima_price)
-            confirmed_status.append(True) # Initially confirmed
             last_low_date = current_minima_date
         else:
             break # No more data in window, stop
 
-    minima_df = pd.DataFrame({'Date': minima_dates, 'Close': minima_prices, 'Confirmed': confirmed_status}) # NEW: Include 'Confirmed' column
+    minima_df = pd.DataFrame({'Date': minima_dates, 'Close': minima_prices})
     return minima_df
 
 
@@ -67,7 +64,6 @@ def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_peri
     """
     half_cycle_minima_dates = []
     half_cycle_minima_prices = []
-    half_cycle_confirmed_status = [] # NEW: Track confirmed status
 
     for index, cycle_low_row in cycle_lows_df.iterrows():
         cycle_low_date = cycle_low_row['Date']
@@ -84,9 +80,8 @@ def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_peri
 
             half_cycle_minima_dates.append(half_cycle_minima_date)
             half_cycle_minima_prices.append(half_cycle_minima_price)
-            half_cycle_confirmed_status.append(True) # Initially confirmed
 
-    half_cycle_minima_df = pd.DataFrame({'Date': half_cycle_minima_dates, 'Close': half_cycle_minima_prices, 'Confirmed': half_cycle_confirmed_status}) # NEW: Include 'Confirmed' column
+    half_cycle_minima_df = pd.DataFrame({'Date': half_cycle_minima_dates, 'Close': half_cycle_minima_prices})
     return half_cycle_minima_df
 
 def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
@@ -206,26 +201,12 @@ if df is not None: # Proceed only if data is loaded successfully
     st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}") # Dynamic counts
     st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
+    
 
 
     # Identify overlapping dates and filter half-cycle minima to exclude overlaps
     overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
     half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
-
-    # Determine unconfirmed status based on time since last low
-    today_date = df['Date'].max()
-
-    if not minima_df.empty:
-        last_cycle_low_date = minima_df['Date'].iloc[-1]
-        time_since_last_cycle_low = today_date - last_cycle_low_date
-        if time_since_last_cycle_low <= pd.Timedelta(days=expected_period_days + tolerance_days):
-            minima_df['Confirmed'].iloc[-1] = False # Mark last cycle low as unconfirmed
-
-    if not half_cycle_minima_df_no_overlap.empty:
-        last_half_cycle_low_date = half_cycle_minima_df_no_overlap['Date'].iloc[-1]
-        time_since_last_half_cycle_low = today_date - last_half_cycle_low_date
-        if time_since_last_half_cycle_low <= pd.Timedelta(days=expected_period_days + tolerance_days): # Using full cycle tolerance for simplicity, adjust if needed
-            half_cycle_minima_df_no_overlap['Confirmed'].iloc[-1] = False # Mark last half-cycle low as unconfirmed
 
 
     # Plotting with Matplotlib and display in Streamlit
@@ -236,17 +217,10 @@ if df is not None: # Proceed only if data is loaded successfully
     cycle_low_color = 'green' if not swap_colors else 'magenta' # Default green, swapped to magenta if checked
     half_cycle_low_color = 'magenta' if not swap_colors else 'green' # Default magenta, swapped to green if checked
 
-    # Plot Cycle Lows - confirmed and unconfirmed
-    for index, row in minima_df.iterrows():
-        color = cycle_low_color if row['Confirmed'] else 'yellow' # Yellow for unconfirmed
-        ax.scatter(row['Date'], row['Close'], color=color, label=cycle_label if index == 0 else "") # Label only once
+    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label) # Green or magenta dots for cycle lows
 
-    # Plot Half-Cycle Lows - confirmed and unconfirmed
     if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
-        for index, row in half_cycle_minima_df_no_overlap.iterrows():
-            color = half_cycle_low_color if row['Confirmed'] else 'yellow' # Yellow for unconfirmed
-            ax.scatter(row['Date'], row['Close'], color=color, label=half_cycle_label if index == 0 else "") # Label only once
-
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label) # Magenta or green dots for half-cycle lows
 
     ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
 
@@ -276,20 +250,10 @@ if df is not None: # Proceed only if data is loaded successfully
     ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
 
 
-    ax.set_title(f'{symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Dynamic title
+    ax.set_title(f'BTC/USD Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}') # Dynamic title
     ax.set_xlabel('Date')
     ax.set_ylabel('Price')
-
-    # Update legend to include yellow dots if unconfirmed points exist
-    handles, labels = ax.get_legend_handles_labels()
-    if any(~minima_df['Confirmed']): # Check if any unconfirmed cycle lows
-        handles.append(plt.Line2D([0], [0], marker='o', color='w', label='Unconfirmed Cycle Lows', markerfacecolor='yellow', markersize=8))
-    if show_half_cycle and any(~half_cycle_minima_df_no_overlap['Confirmed']): # Check if any unconfirmed half-cycle lows
-        handles.append(plt.Line2D([0], [0], marker='o', color='w', label='Unconfirmed Half-Cycle Lows', markerfacecolor='yellow', markersize=8))
-
-    ax.legend(handles=handles, labels=labels)
-
-
+    ax.legend()
     ax.grid(True)
     plt.xticks(rotation=45)
     plt.tight_layout()
@@ -298,4 +262,3 @@ if df is not None: # Proceed only if data is loaded successfully
 
 else:
     st.info("Failed to load data from Coinbase API. Please check for errors in the sidebar.")
-
