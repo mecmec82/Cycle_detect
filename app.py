@@ -139,7 +139,7 @@ swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 # Fetch data from Coinbase API
 @st.cache_data(ttl=3600, persist=True) # Cache data for 1 hour, use persist=True for session-based caching if needed
 def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the cached function
-    exchange = ccxt.coinbase()
+    exchange = ccxt.binance()
     symbol = 'BTC/USD'
     timeframe = '1d'
     limit_days = timeframe_months * 31  # Approximate days for selected months (more than enough)
@@ -154,7 +154,7 @@ def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the ca
         df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']] # Reorder columns
         return df
     except ccxt.ExchangeError as e:
-        st.error(f"Coinbase API error: {e}")
+        st.error(f" API error: {e}")
         return None
     except Exception as e:
         st.error(f"An unexpected error occurred: {e}")
