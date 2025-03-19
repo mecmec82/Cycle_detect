@@ -248,11 +248,17 @@ if df is not None: # Proceed only if data is loaded successfully
     final_bg_color = 'lightgreen' if time_since_last_low < threshold_time else 'lightpink'
     ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
 
-    # Calculate and plot expected next low line
+    # Calculate and plot expected next low line (Cycle)
     if not all_lows_df.empty:
         most_recent_low_date = all_lows_df['Date'].iloc[-1]
         expected_next_low_date = most_recent_low_date + pd.Timedelta(days=expected_period_days)
         ax.axvline(x=expected_next_low_date, color='grey', linestyle='--', label='Expected Next Low') # Add vertical line
+
+    # Calculate and plot expected next half-cycle low line
+    if show_half_cycle and not half_cycle_minima_df_no_overlap.empty: # Conditionally plot half-cycle line
+        most_recent_half_cycle_low_date = half_cycle_minima_df_no_overlap['Date'].iloc[-1]
+        expected_next_half_cycle_low_date = most_recent_half_cycle_low_date + pd.Timedelta(days=expected_period_days / 2)
+        ax.axvline(x=expected_next_half_cycle_low_date, color='grey', linestyle=':', label='Expected Next Half-Cycle Low') # Dotted line for half-cycle
 
 
     ax.set_title(f'{symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}', fontsize=16) # MODIFIED: Increased title fontsize
