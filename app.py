@@ -236,7 +236,7 @@ if df is not None: # Proceed only if data is loaded successfully
     for index, row in cycle_highs_df.iterrows():
         ax.annotate(row['Label'], # The text to annotate
                     xy=(row['Date'], row['High']), # Point to annotate
-                    xytext=(0, 20), # Offset for text from the point
+                    xytext=(0, 10), # Offset for text from the point
                     textcoords='offset points', # How xytext is interpreted
                     ha='center', va='bottom', # Text alignment
                     fontsize=12,
