@@ -216,10 +216,16 @@ if df is not None: # Proceed only if data is loaded successfully
     cycle_low_color = 'green' if not swap_colors else 'magenta' # Default green, swapped to magenta if checked
     half_cycle_low_color = 'magenta' if not swap_colors else 'green' # Default magenta, swapped to green if checked
 
-    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label) # Green or magenta dots for cycle lows
+    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label, s=60) # MODIFIED: Increased dot size, s=60
+    for index, row in minima_df.iterrows(): # NEW: Annotate Cycle Lows
+        ax.annotate('D', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,5), ha='center', fontsize=10)
+
 
     if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
-        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label) # Magenta or green dots for half-cycle lows
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label, s=60) # MODIFIED: Increased dot size, s=60
+        for index, row in half_cycle_minima_df_no_overlap.iterrows(): # NEW: Annotate Half-Cycle Lows
+            ax.annotate('H', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,5), ha='center', fontsize=10)
+
 
     ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
 
@@ -249,15 +255,13 @@ if df is not None: # Proceed only if data is loaded successfully
     ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
 
     # Calculate and plot expected next low line (Cycle)
-    if not all_lows_df.empty:
-        most_recent_low_date = all_lows_df['Date'].iloc[-1]
-        expected_next_low_date = most_recent_low_date + pd.Timedelta(days=expected_period_days)
+    if not minima_df.empty: # Use minima_df to get last cycle low
+        most_recent_cycle_low_date = minima_df['Date'].iloc[-1] # Last CYCLE low date
+        expected_next_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days)
         ax.axvline(x=expected_next_low_date, color='grey', linestyle='--', label='Expected Next Low') # Add vertical line
 
-    # Calculate and plot expected next half-cycle low line
-    if show_half_cycle and not half_cycle_minima_df_no_overlap.empty: # Conditionally plot half-cycle line
-        most_recent_half_cycle_low_date = half_cycle_minima_df_no_overlap['Date'].iloc[-1]
-        expected_next_half_cycle_low_date = most_recent_half_cycle_low_date + pd.Timedelta(days=expected_period_days / 2)
+        # Calculate and plot expected next half-cycle low line - relative to CYCLE low
+        expected_next_half_cycle_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days / 2) # Relative to CYCLE low
         ax.axvline(x=expected_next_half_cycle_low_date, color='grey', linestyle=':', label='Expected Next Half-Cycle Low') # Dotted line for half-cycle
 
 
