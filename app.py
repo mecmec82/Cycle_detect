@@ -268,15 +268,15 @@ if df is not None: # Proceed only if data is loaded successfully
         expected_next_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days)
         expected_next_low_date_str = expected_next_low_date.strftime('%Y-%m-%d') # Format date to string
         ax.axvline(x=expected_next_low_date, color='grey', linestyle='--', label='Expected Next Low') # Add vertical line
-        ax.annotate(f'Exp. Cycle Low\n{expected_next_low_date_str}', xy=(expected_next_low_date, df['Close'].max()), xytext=(10, 0), textcoords='offset points',
+        ax.annotate(f'Exp. Cycle Low\n{expected_next_low_date_str}', xy=(expected_next_low_date, df['Close'].max()), xytext=(-50, 0), textcoords='offset points',
                     fontsize=10, color='grey', ha='left', va='top') # Annotation for Cycle line with date
 
         # Calculate and plot expected next half-cycle low line - relative to CYCLE low and annotation
         expected_next_half_cycle_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days / 2) # Relative to CYCLE low
         expected_next_half_cycle_low_date_str = expected_next_half_cycle_low_date.strftime('%Y-%m-%d') # Format date to string
         ax.axvline(x=expected_next_half_cycle_low_date, color='grey', linestyle=':', label='Expected Next Half-Cycle Low') # Dotted line for half-cycle
-        ax.annotate(f'Exp. Half-Cycle Low\n{expected_next_half_cycle_low_date_str}', xy=(expected_next_half_cycle_low_date,  df['Close'].max()), xytext=(10, 0), textcoords='offset points',
-                    fontsize=10, color='grey', ha='left', va='bottom') # Annotation for Half-Cycle line with date
+        ax.annotate(f'Exp. Half-Cycle Low\n{expected_next_half_cycle_low_date_str}', xy=(expected_next_half_cycle_low_date,  df['Close'].max()), xytext=(-50, -50), textcoords='offset points',
+                    fontsize=10, color='grey', ha='left', va='top') # Annotation for Half-Cycle line with date
 
 
     ax.set_title(f'{symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}', fontsize=16) # MODIFIED: Increased title fontsize
