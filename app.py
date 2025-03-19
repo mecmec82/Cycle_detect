@@ -232,7 +232,9 @@ if df is not None: # Proceed only if data is loaded successfully
 
     # Add labels to cycle high points
     for index, row in cycle_highs_df.iterrows():
-        ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=12, ha='left', va='bottom') # MODIFIED: Increased annotation fontsize
+        ax.text(row['Date'], row['High'], row['Label'], color='black', fontsize=12, ha='left', xytext=(0,+20), va='bottom') # MODIFIED: Increased annotation fontsize
+        #ax.annotate('H', (row['Date'], row['High']), textcoords="offset points", xytext=(0,-20), ha='center', fontsize=10) # MODIFIED: xytext=(0,-20) for below
+
 
 
     # Add background color spans for half-cycles
