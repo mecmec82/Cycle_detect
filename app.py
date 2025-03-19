@@ -218,13 +218,13 @@ if df is not None: # Proceed only if data is loaded successfully
 
     ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label, s=60) # MODIFIED: Increased dot size, s=60
     for index, row in minima_df.iterrows(): # NEW: Annotate Cycle Lows BELOW dot
-        ax.annotate('D', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,-10), ha='center', fontsize=10) # MODIFIED: xytext=(0,-10) for below
+        ax.annotate('D', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,-20), ha='center', fontsize=10) # MODIFIED: xytext=(0,-20) for below
 
 
     if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
         ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label, s=60) # MODIFIED: Increased dot size, s=60
         for index, row in half_cycle_minima_df_no_overlap.iterrows(): # NEW: Annotate Half-Cycle Lows BELOW dot
-            ax.annotate('H', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,-10), ha='center', fontsize=10) # MODIFIED: xytext=(0,-10) for below
+            ax.annotate('H', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,-20), ha='center', fontsize=10) # MODIFIED: xytext=(0,-20) for below
 
 
     ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
