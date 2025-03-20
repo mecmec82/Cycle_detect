@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import requests  # Import the requests library for API calls
+from matplotlib.backends.backend_agg import FigureCanvasAgg # Ensure this is imported
 
 def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
     """
@@ -125,7 +126,7 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 # Function to fetch data from Alpha Vantage (FREE Endpoint)
 @st.cache_data(ttl=3600, persist=True)
-def load_data_from_alphavantage(symbol, api_key):
+def load_data_from_alphavantage(symbol, api_key, limit_days=300): # Added limit_days parameter
     function = 'TIME_SERIES_DAILY' # Using free daily endpoint
     outputsize = 'full'  # Fetch maximum available data
     url = f'https://www.alphavantage.co/query?function={function}&symbol={symbol}&outputsize={outputsize}&apikey={api_key}'
@@ -154,6 +155,9 @@ def load_data_from_alphavantage(symbol, api_key):
         df = df.sort_values(by='Date')  # Sort by date
         df = df.reset_index(drop=True)
 
+        if len(df) > limit_days: # Limit DataFrame to specified days
+            df = df.iloc[-limit_days:].reset_index(drop=True) # Take last 'limit_days' rows
+
         st.sidebar.write(f"Data length for {symbol}: {len(df)}")
         return df
 
@@ -175,6 +179,8 @@ st.title('Stock Price Cycle Detection')
 st.sidebar.header("Parameter Settings")
 symbol = st.sidebar.text_input("Stock Symbol", "AAPL") # Default to AAPL
 alpha_vantage_api_key = st.sidebar.text_input("Alpha Vantage API Key", type="password") # Password type for API key input
+# NEW: Days to Download Slider
+limit_days_input = st.sidebar.slider("Days to Download", min_value=100, max_value=365*5, value=300, step=100) # Up to 5 years, step 100
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
 show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True)
@@ -182,7 +188,7 @@ swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 
 
 # Load data from Alpha Vantage
-df = load_data_from_alphavantage(symbol, alpha_vantage_api_key)
+df = load_data_from_alphavantage(symbol, alpha_vantage_api_key, limit_days=limit_days_input) # Pass limit_days_input
 
 if df is not None:
     # Data processing and plotting (same as before - no changes needed below this line)
@@ -286,7 +292,13 @@ if df is not None:
     plt.yticks(fontsize=12)
     plt.tight_layout()
 
-    st.pyplot(fig)
+    # Enable Matplotlib interactivity for Streamlit - basic zoom/pan
+    canvas = FigureCanvasAgg(fig) # Create a canvas
+    canvas.draw() # draw the figure on the canvas
+    renderer = canvas.get_renderer()
+    plot_items = fig.get_children()
+
+    st.pyplot(fig) # Display plot - basic static display for now
 
 else:
     st.info("Failed to load data from Alpha Vantage API. Please check symbol and API key in the sidebar.") # Updated info message
