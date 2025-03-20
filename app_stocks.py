@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
-import plotly_express as px # Importing Plotly Express
+import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import requests  # Import the requests library for API calls
+from matplotlib.backends.backend_agg import FigureCanvasAgg # Ensure this is imported
 
 def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
     """
@@ -53,7 +54,7 @@ def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, 
         else:
             break # No more data in window, stop
 
-    minima_df = pd.DataFrame({'Date': minima_dates, 'Date': minima_dates, 'Close': minima_prices}) # Corrected DataFrame creation
+    minima_df = pd.DataFrame({'Date': minima_dates, 'Close': minima_prices})
     return minima_df
 
 
@@ -81,7 +82,7 @@ def find_half_cycle_lows_relative_to_cycle_lows(df, cycle_lows_df, expected_peri
             half_cycle_minima_dates.append(half_cycle_minima_date)
             half_cycle_minima_prices.append(half_cycle_minima_price)
 
-    half_cycle_minima_df = pd.DataFrame({'Date': half_cycle_minima_dates, 'Date': half_cycle_minima_dates, 'Close': half_cycle_minima_prices}) # Corrected DataFrame creation
+    half_cycle_minima_df = pd.DataFrame({'Date': half_cycle_minima_dates, 'Close': half_cycle_minima_prices})
     return half_cycle_minima_df
 
 def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
@@ -91,7 +92,7 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     """
     cycle_high_dates = []
     cycle_high_prices = []
-    cycle_high_labels = [] # List to store 'R' labels
+    cycle_high_labels = [] # List to store 'L' or 'R' labels
 
     all_lows_df = pd.concat([cycle_lows_df, half_cycle_lows_df]).sort_values(by='Date').reset_index(drop=True)
 
@@ -123,11 +124,11 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     return cycle_highs_df, cycle_high_labels # Return both df and labels
 
 
-# Function to fetch data from Alpha Vantage (FREE Endpoint) - MODIFIED for max data download
+# Function to fetch data from Alpha Vantage (FREE Endpoint)
 @st.cache_data(ttl=3600, persist=True)
-def load_data_from_alphavantage(symbol, api_key): # Removed limit_days parameter
+def load_data_from_alphavantage(symbol, api_key, limit_days=300): # Added limit_days parameter
     function = 'TIME_SERIES_DAILY' # Using free daily endpoint
-    outputsize = 'full'  # Fetch maximum available data - always full now
+    outputsize = 'full'  # Fetch maximum available data
     url = f'https://www.alphavantage.co/query?function={function}&symbol={symbol}&outputsize={outputsize}&apikey={api_key}'
 
     try:
@@ -154,7 +155,9 @@ def load_data_from_alphavantage(symbol, api_key): # Removed limit_days parameter
         df = df.sort_values(by='Date')  # Sort by date
         df = df.reset_index(drop=True)
 
-        st.session_state['full_df_alphavantage'] = df # Store full df in session state
+        if len(df) > limit_days: # Limit DataFrame to specified days
+            df = df.iloc[-limit_days:].reset_index(drop=True) # Take last 'limit_days' rows
+
         st.sidebar.write(f"Data length for {symbol}: {len(df)}")
         return df
 
@@ -176,90 +179,126 @@ st.title('Stock Price Cycle Detection')
 st.sidebar.header("Parameter Settings")
 symbol = st.sidebar.text_input("Stock Symbol", "AAPL") # Default to AAPL
 alpha_vantage_api_key = st.sidebar.text_input("Alpha Vantage API Key", type="password") # Password type for API key input
-# REMOVED: Days to Download Slider - Data is always fully downloaded now
+# NEW: Days to Download Slider
+limit_days_input = st.sidebar.slider("Days to Download", min_value=100, max_value=365*5, value=300, step=100) # Up to 5 years, step 100
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
 show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True)
 swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 
-# Date Range Slider - NEW Control
-if 'full_df_alphavantage' in st.session_state:
-    full_df = st.session_state['full_df_alphavantage']
-    min_date = full_df['Date'].min()
-    max_date = full_df['Date'].max()
-    start_date, end_date = st.sidebar.slider(
-        "Date Range",
-        min_value=min_date,
-        max_value=max_date,
-        value=(min_date, max_date) # Default range is full data range
+
+# Load data from Alpha Vantage
+df = load_data_from_alphavantage(symbol, alpha_vantage_api_key, limit_days=limit_days_input) # Pass limit_days_input
+
+if df is not None:
+    # Data processing and plotting (same as before - no changes needed below this line)
+    df = df.sort_values(by='Date')
+    df = df.reset_index(drop=True)
+
+    minima_df = find_local_minima_simplified(
+        df.copy(),
+        expected_period_days=expected_period_days,
+        tolerance_days=tolerance_days
     )
-else:
-    start_date = None
-    end_date = None
+
+    half_cycle_minima_df = find_half_cycle_lows_relative_to_cycle_lows(
+        df.copy(),
+        minima_df,
+        expected_period_days=expected_period_days,
+        tolerance_days=tolerance_days
+    )
+
+    cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
+
+    cycle_label = "Cycle Lows"
+    half_cycle_label = "Half-Cycle Lows"
+
+    st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}")
+    st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}")
+    st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
+
+    overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
+    half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
 
 
-# Load data from Alpha Vantage - Fetch full data only once initially
-if 'full_df_alphavantage' not in st.session_state: # Load only if not already in session state
-    df_full = load_data_from_alphavantage(symbol, alpha_vantage_api_key)
-else:
-    df_full = st.session_state['full_df_alphavantage'] # Retrieve from session state
+    # Plotting with Matplotlib
+    fig, ax = plt.subplots(figsize=(14, 7))
+    ax.plot(df['Date'], df['Close'], label='Price', color='blue')
+
+    cycle_low_color = 'green' if not swap_colors else 'magenta'
+    half_cycle_low_color = 'magenta' if not swap_colors else 'green'
+
+    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label, s=60)
+    for index, row in minima_df.iterrows():
+        ax.annotate('D', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,-20), ha='center', fontsize=12,
+                    arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5))
+
+    if show_half_cycle:
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label, s=60)
+        for index, row in half_cycle_minima_df_no_overlap.iterrows():
+            ax.annotate('H', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,-20), ha='center', fontsize=12,
+                        arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5))
+
+    ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs')
+    for index, row in cycle_highs_df.iterrows():
+        ax.annotate(row['Label'],
+                    xy=(row['Date'], row['High']),
+                    xytext=(0, 10),
+                    textcoords='offset points',
+                    ha='center', va='bottom',
+                    fontsize=12,
+                    arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5))
+
+    all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True)
+    for i in range(len(all_lows_df) - 1):
+        start_date = all_lows_df['Date'].iloc[i]
+        end_date = all_lows_df['Date'].iloc[i+1]
+        midpoint_date = start_date + (end_date - start_date) / 2
+
+        ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2)
+        ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2)
+
+    last_low_date = all_lows_df['Date'].iloc[-1]
+    today_date = df['Date'].max()
+    time_since_last_low = today_date - last_low_date
+    threshold_time = pd.Timedelta(days=expected_period_days / 4)
+
+    final_bg_color = 'lightgreen' if time_since_last_low < threshold_time else 'lightpink'
+    ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2)
+
+    # Calculate and plot expected next low line (Cycle) and annotation
+    if not minima_df.empty:
+        most_recent_cycle_low_date = minima_df['Date'].iloc[-1]
+        expected_next_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days)
+        expected_next_low_date_str = expected_next_low_date.strftime('%Y-%m-%d')
+        ax.axvline(x=expected_next_low_date, color='grey', linestyle='--', label='Expected Next Low')
+        ax.annotate(f'Exp. Cycle Low\n{expected_next_low_date_str}', xy=(expected_next_low_date, df['Close'].max()), xytext=(10, 0), textcoords='offset points',
+                    fontsize=10, color='grey', ha='left', va='top')
+
+        # Calculate and plot expected next half-cycle low line - relative to CYCLE low and annotation
+        expected_next_half_cycle_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days / 2)
+        expected_next_half_cycle_low_date_str = expected_next_half_cycle_low_date.strftime('%Y-%m-%d')
+        ax.axvline(x=expected_next_half_cycle_low_date, color='grey', linestyle=':', label='Expected Next Half-Cycle Low')
+        ax.annotate(f'Exp. Half-Cycle Low\n{expected_next_half_cycle_low_date_str}', xy=(expected_next_half_cycle_low_date,  df['Close'].max()), xytext=(10, 0), textcoords='offset points',
+                    fontsize=10, color='grey', ha='left', va='top')
 
 
-if df_full is not None:
-    if start_date is not None and end_date is not None:
-        df_filtered = df_full[(df_full['Date'] >= start_date) & (df_full['Date'] <= end_date)].copy() # Filter based on date range
-    else:
-        df_filtered = df_full.copy() # Use full df if date range not set
+    ax.set_title(f'{symbol} Stock Price Chart (Alpha Vantage) - {cycle_label} & {half_cycle_label}', fontsize=16) # Updated title
+    ax.set_xlabel('Date', fontsize=14)
+    ax.set_ylabel('Price', fontsize=14)
+    ax.legend(fontsize=12)
+    ax.grid(True)
+    plt.xticks(rotation=45, fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.tight_layout()
 
-    if not df_filtered.empty: # Proceed only if filtered df is not empty
-        df = df_filtered.reset_index(drop=True) # Reset index for filtered df
+    # Enable Matplotlib interactivity for Streamlit - basic zoom/pan
+    canvas = FigureCanvasAgg(fig) # Create a canvas
+    canvas.draw() # draw the figure on the canvas
+    renderer = canvas.get_renderer()
+    plot_items = fig.get_children()
 
-        minima_df = find_local_minima_simplified(
-            df.copy(),
-            expected_period_days=expected_period_days,
-            tolerance_days=tolerance_days
-        )
-
-        half_cycle_minima_df = find_half_cycle_lows_relative_to_cycle_lows(
-            df.copy(),
-            minima_df,
-            expected_period_days=expected_period_days,
-            tolerance_days=tolerance_days
-        )
-
-        cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
-
-        cycle_label = "Cycle Lows"
-        half_cycle_label = "Half-Cycle Lows"
-
-        st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}")
-        st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}")
-        st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
-
-        overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
-        half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
-
-
-        # Plotting with Plotly Express - INTERACTIVE CHART
-        fig = px.line(df, x='Date', y='Close', title=f'{symbol} Stock Price Chart (Alpha Vantage) - {cycle_label} & {half_cycle_label}') # Base price line
-        fig.add_scatter(x=minima_df['Date'], y=minima_df['Close'], mode='markers', marker=dict(color='green' if not swap_colors else 'magenta', size=10), name=cycle_label) # Cycle lows
-        if show_half_cycle:
-            fig.add_scatter(x=half_cycle_minima_df_no_overlap['Date'], y=half_cycle_minima_df_no_overlap['Close'], mode='markers', marker=dict(color='magenta' if not swap_colors else 'green', size=10), name=half_cycle_label) # Half-cycle lows
-        fig.add_scatter(x=cycle_highs_df['Date'], y=cycle_highs_df['High'], mode='markers', marker=dict(color='red', size=10), name='Cycle Highs') # Cycle highs
-
-        # Expected Low Lines - Annotations need to be added separately in Plotly
-        if not minima_df.empty:
-            most_recent_cycle_low_date = minima_df['Date'].iloc[-1]
-            expected_next_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days)
-            expected_next_half_cycle_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days / 2)
-
-            fig.add_vline(x=expected_next_low_date.timestamp() * 1000, line_dash="dash", line_color="grey", annotation_text="Exp. Cycle Low", annotation_position="top left") # Cycle line - Plotly uses timestamps in milliseconds
-            fig.add_vline(x=expected_next_half_cycle_low_date.timestamp() * 1000, line_dash="dot", line_color="grey", annotation_text="Exp. Half-Cycle Low", annotation_position="top left") # Half-cycle line
-
-        st.plotly_chart(fig, use_container_width=True) # Display Plotly chart
-
-    else:
-        st.warning("No data to display for the selected date range.") # Warn if filtered df is empty
+    st.pyplot(fig) # Display plot - basic static display for now
 
 else:
     st.info("Failed to load data from Alpha Vantage API. Please check symbol and API key in the sidebar.") # Updated info message
