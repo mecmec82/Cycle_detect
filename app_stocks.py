@@ -123,10 +123,10 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     return cycle_highs_df, cycle_high_labels # Return both df and labels
 
 
-# Function to fetch data from Alpha Vantage
+# Function to fetch data from Alpha Vantage (FREE Endpoint)
 @st.cache_data(ttl=3600, persist=True)
 def load_data_from_alphavantage(symbol, api_key):
-    function = 'TIME_SERIES_DAILY_ADJUSTED'
+    function = 'TIME_SERIES_DAILY' # Using free daily endpoint
     outputsize = 'full'  # Fetch maximum available data
     url = f'https://www.alphavantage.co/query?function={function}&symbol={symbol}&outputsize={outputsize}&apikey={api_key}'
 
@@ -147,8 +147,8 @@ def load_data_from_alphavantage(symbol, api_key):
                 'Open': float(values['1. open']),
                 'High': float(values['2. high']),
                 'Low': float(values['3. low']),
-                'Close': float(values['4. close']),
-                'Volume': float(values['6. volume']) # Using adjusted volume '6. volume'
+                'Close': float(values['4. close']), # Using '4. close' for unadjusted close
+                'Volume': float(values['5. volume']) # Using '5. volume' for unadjusted volume
             })
         df = pd.DataFrame(df_records)
         df = df.sort_values(by='Date')  # Sort by date
@@ -185,7 +185,7 @@ swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 df = load_data_from_alphavantage(symbol, alpha_vantage_api_key)
 
 if df is not None:
-    # Data processing and plotting (same as before)
+    # Data processing and plotting (same as before - no changes needed below this line)
     df = df.sort_values(by='Date')
     df = df.reset_index(drop=True)
 
