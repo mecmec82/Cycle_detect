@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-import ccxt
 import datetime
+import requests  # Import the requests library for API calls
 
 def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
     """
@@ -123,172 +123,170 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     return cycle_highs_df, cycle_high_labels # Return both df and labels
 
 
+# Function to fetch data from Alpha Vantage
+@st.cache_data(ttl=3600, persist=True)
+def load_data_from_alphavantage(symbol, api_key):
+    function = 'TIME_SERIES_DAILY_ADJUSTED'
+    outputsize = 'full'  # Fetch maximum available data
+    url = f'https://www.alphavantage.co/query?function={function}&symbol={symbol}&outputsize={outputsize}&apikey={api_key}'
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+        data = response.json()
+
+        if 'Time Series (Daily)' not in data:
+            st.error(f"Error fetching data for symbol '{symbol}' from Alpha Vantage. Check symbol or API key. Raw API response: {data}")
+            return None
+
+        daily_data = data['Time Series (Daily)']
+        df_records = []
+        for date_str, values in daily_data.items():
+            df_records.append({
+                'Date': pd.to_datetime(date_str),
+                'Open': float(values['1. open']),
+                'High': float(values['2. high']),
+                'Low': float(values['3. low']),
+                'Close': float(values['4. close']),
+                'Volume': float(values['6. volume']) # Using adjusted volume '6. volume'
+            })
+        df = pd.DataFrame(df_records)
+        df = df.sort_values(by='Date')  # Sort by date
+        df = df.reset_index(drop=True)
+
+        st.sidebar.write(f"Data length for {symbol}: {len(df)}")
+        return df
+
+    except requests.exceptions.RequestException as e:
+        st.error(f"API request error for symbol '{symbol}': {e}")
+        return None
+    except ValueError as e:
+        st.error(f"Error parsing JSON response from Alpha Vantage for symbol '{symbol}': {e}. Raw response text: {response.text}")
+        return None
+    except Exception as e:
+        st.error(f"An unexpected error occurred while loading data for '{symbol}': {e}")
+        return None
+
 
 # Streamlit App
-#st.title('BTC Price with Extended Cycle Background Colors')
+st.title('Stock Price Cycle Detection')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
-symbol = st.sidebar.text_input("Symbol", "BTC/USD")
-#timeframe_months = st.sidebar.selectbox("Select Timeframe (Months)", [6, 12, 18, 24, 48, 72, 96], index=3) # Added timeframe selectbox
+symbol = st.sidebar.text_input("Stock Symbol", "AAPL") # Default to AAPL
+alpha_vantage_api_key = st.sidebar.text_input("Alpha Vantage API Key", type="password") # Password type for API key input
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
-show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True) # Control to toggle half-cycle display
-swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False) # NEW: Control to swap colors
+show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True)
+swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 
 
-# Fetch data from Coinbase API
-@st.cache_data(ttl=3600, persist=True) # Cache data for 1 hour, use persist=True for session-based caching if needed
-#def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the cached function
-def load_data_from_coinbase(symbol): # Pass timeframe_months to the cached function
-    exchange = ccxt.coinbase()
-    #symbol = 'BTC/USD'
-    timeframe = '1d'
-    #limit_days = timeframe_months * 31  # Approximate days for selected months (more than enough)
-    limit_days = 300
-    limit = limit_days # Use calculated limit
-    since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit_days) # Use limit_days
-    since_timestamp = exchange.parse8601(since_datetime.isoformat())
+# Load data from Alpha Vantage
+df = load_data_from_alphavantage(symbol, alpha_vantage_api_key)
 
-    try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=since_timestamp, limit=limit)
-        df = pd.DataFrame(ohlcv, columns=['Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
-        df['Date'] = pd.to_datetime(df['Timestamp'], unit='ms')
-        df = df[['Date', 'Open', 'High', 'Low', 'Close', 'Volume']] # Reorder columns
-
-        st.sidebar.write(f"len: {len(df)}")
-        return df
-    except ccxt.ExchangeError as e:
-        st.error(f" API error: {e}")
-        return None
-    except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
-        return None
-
-
-#df = load_data_from_coinbase(timeframe_months) # Pass timeframe_months to data loading function
-df = load_data_from_coinbase(symbol) # Pass timeframe_months to data loading function
-
-if df is not None: # Proceed only if data is loaded successfully
-
-    # Sort DataFrame by date in ascending order (oldest to newest) - already sorted by API but good practice
+if df is not None:
+    # Data processing and plotting (same as before)
     df = df.sort_values(by='Date')
     df = df.reset_index(drop=True)
 
-    # Find local minima (full cycle)
     minima_df = find_local_minima_simplified(
         df.copy(),
         expected_period_days=expected_period_days,
         tolerance_days=tolerance_days
     )
 
-    # Find half-cycle lows relative to cycle lows
     half_cycle_minima_df = find_half_cycle_lows_relative_to_cycle_lows(
         df.copy(),
-        minima_df, # Pass cycle lows df
+        minima_df,
         expected_period_days=expected_period_days,
         tolerance_days=tolerance_days
     )
 
-    # Find cycle highs and labels
     cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
-
 
     cycle_label = "Cycle Lows"
     half_cycle_label = "Half-Cycle Lows"
 
-
-    st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}") # Dynamic counts
-    st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}") # Dynamic counts
+    st.sidebar.write(f"Number of {cycle_label} found: {len(minima_df)}")
+    st.sidebar.write(f"Number of {half_cycle_label} found: {len(half_cycle_minima_df)}")
     st.sidebar.write(f"Number of Cycle Highs found: {len(cycle_highs_df)}")
 
-
-    # Identify overlapping dates and filter half-cycle minima to exclude overlaps
     overlap_dates = set(minima_df['Date']).intersection(set(half_cycle_minima_df['Date']))
     half_cycle_minima_df_no_overlap = half_cycle_minima_df[~half_cycle_minima_df['Date'].isin(overlap_dates)]
 
 
-    # Plotting with Matplotlib and display in Streamlit
-    fig, ax = plt.subplots(figsize=(14, 7)) # Reverted figsize back to original
+    # Plotting with Matplotlib
+    fig, ax = plt.subplots(figsize=(14, 7))
     ax.plot(df['Date'], df['Close'], label='Price', color='blue')
 
-    # Conditional color assignment based on swap_colors checkbox
-    cycle_low_color = 'green' if not swap_colors else 'magenta' # Default green, swapped to magenta if checked
-    half_cycle_low_color = 'magenta' if not swap_colors else 'green' # Default magenta, swapped to green if checked
+    cycle_low_color = 'green' if not swap_colors else 'magenta'
+    half_cycle_low_color = 'magenta' if not swap_colors else 'green'
 
-    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label, s=60) # MODIFIED: Increased dot size, s=60
-    for index, row in minima_df.iterrows(): # NEW: Annotate Cycle Lows BELOW dot
+    ax.scatter(minima_df['Date'], minima_df['Close'], color=cycle_low_color, label=cycle_label, s=60)
+    for index, row in minima_df.iterrows():
         ax.annotate('D', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,-20), ha='center', fontsize=12,
-                    arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5)) # MODIFIED: xytext=(0,-10) for below
+                    arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5))
 
-
-    if show_half_cycle: # Conditionally plot half-cycle lows based on checkbox
-        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label, s=60) # MODIFIED: Increased dot size, s=60
-        for index, row in half_cycle_minima_df_no_overlap.iterrows(): # NEW: Annotate Half-Cycle Lows BELOW dot
+    if show_half_cycle:
+        ax.scatter(half_cycle_minima_df_no_overlap['Date'], half_cycle_minima_df_no_overlap['Close'], color=half_cycle_low_color, label=half_cycle_label, s=60)
+        for index, row in half_cycle_minima_df_no_overlap.iterrows():
             ax.annotate('H', (row['Date'], row['Close']), textcoords="offset points", xytext=(0,-20), ha='center', fontsize=12,
-                    arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5)) # MODIFIED: xytext=(0,-10) for below
+                        arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5))
 
-
-    ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs') # Red dots for cycle highs
-
-
-    # Add labels to cycle high points - using ax.annotate
+    ax.scatter(cycle_highs_df['Date'], cycle_highs_df['High'], color='red', label='Cycle Highs')
     for index, row in cycle_highs_df.iterrows():
-        ax.annotate(row['Label'], # The text to annotate
-                    xy=(row['Date'], row['High']), # Point to annotate
-                    xytext=(0, 10), # Offset for text from the point
-                    textcoords='offset points', # How xytext is interpreted
-                    ha='center', va='bottom', # Text alignment
+        ax.annotate(row['Label'],
+                    xy=(row['Date'], row['High']),
+                    xytext=(0, 10),
+                    textcoords='offset points',
+                    ha='center', va='bottom',
                     fontsize=12,
-                    arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5)) # Optional arrow, removed arrow
+                    arrowprops=dict(arrowstyle='-', color='black', linewidth=0.5))
 
-
-    # Add background color spans for half-cycles
-    all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True) # Use no_overlap df
+    all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True)
     for i in range(len(all_lows_df) - 1):
         start_date = all_lows_df['Date'].iloc[i]
         end_date = all_lows_df['Date'].iloc[i+1]
         midpoint_date = start_date + (end_date - start_date) / 2
 
-        ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2) # Light green before midpoint
-        ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2) # Light pink after midpoint
+        ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2)
+        ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2)
 
-    # Background color after last low
     last_low_date = all_lows_df['Date'].iloc[-1]
-    today_date = df['Date'].max() # Use the last date in the dataframe as "today" for consistency with data range
+    today_date = df['Date'].max()
     time_since_last_low = today_date - last_low_date
     threshold_time = pd.Timedelta(days=expected_period_days / 4)
 
     final_bg_color = 'lightgreen' if time_since_last_low < threshold_time else 'lightpink'
-    ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
+    ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2)
 
     # Calculate and plot expected next low line (Cycle) and annotation
-    if not minima_df.empty: # Use minima_df to get last cycle low
-        most_recent_cycle_low_date = minima_df['Date'].iloc[-1] # Last CYCLE low date
+    if not minima_df.empty:
+        most_recent_cycle_low_date = minima_df['Date'].iloc[-1]
         expected_next_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days)
-        expected_next_low_date_str = expected_next_low_date.strftime('%Y-%m-%d') # Format date to string
-        ax.axvline(x=expected_next_low_date, color='grey', linestyle='--', label='Expected Next Low') # Add vertical line
-        ax.annotate(f'Exp. Cycle Low\n{expected_next_low_date_str}', xy=(expected_next_low_date, df['Close'].max()), xytext=(-50, 0), textcoords='offset points',
-                    fontsize=10, color='grey', ha='left', va='top') # Annotation for Cycle line with date
+        expected_next_low_date_str = expected_next_low_date.strftime('%Y-%m-%d')
+        ax.axvline(x=expected_next_low_date, color='grey', linestyle='--', label='Expected Next Low')
+        ax.annotate(f'Exp. Cycle Low\n{expected_next_low_date_str}', xy=(expected_next_low_date, df['Close'].max()), xytext=(10, 0), textcoords='offset points',
+                    fontsize=10, color='grey', ha='left', va='top')
 
         # Calculate and plot expected next half-cycle low line - relative to CYCLE low and annotation
-        expected_next_half_cycle_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days / 2) # Relative to CYCLE low
-        expected_next_half_cycle_low_date_str = expected_next_half_cycle_low_date.strftime('%Y-%m-%d') # Format date to string
-        ax.axvline(x=expected_next_half_cycle_low_date, color='grey', linestyle=':', label='Expected Next Half-Cycle Low') # Dotted line for half-cycle
-        ax.annotate(f'Exp. Half-Cycle Low\n{expected_next_half_cycle_low_date_str}', xy=(expected_next_half_cycle_low_date,  df['Close'].max()), xytext=(-50, -50), textcoords='offset points',
-                    fontsize=10, color='grey', ha='left', va='top') # Annotation for Half-Cycle line with date
+        expected_next_half_cycle_low_date = most_recent_cycle_low_date + pd.Timedelta(days=expected_period_days / 2)
+        expected_next_half_cycle_low_date_str = expected_next_half_cycle_low_date.strftime('%Y-%m-%d')
+        ax.axvline(x=expected_next_half_cycle_low_date, color='grey', linestyle=':', label='Expected Next Half-Cycle Low')
+        ax.annotate(f'Exp. Half-Cycle Low\n{expected_next_half_cycle_low_date_str}', xy=(expected_next_half_cycle_low_date,  df['Close'].max()), xytext=(10, 0), textcoords='offset points',
+                    fontsize=10, color='grey', ha='left', va='top')
 
 
-    ax.set_title(f'{symbol} Price Chart (Coinbase) - {cycle_label} & {half_cycle_label}', fontsize=16) # MODIFIED: Increased title fontsize
-    ax.set_xlabel('Date', fontsize=14) # MODIFIED: Increased xlabel fontsize
-    ax.set_ylabel('Price', fontsize=14) # MODIFIED: Increased ylabel fontsize
-    ax.legend(fontsize=12) # MODIFIED: Increased legend fontsize
+    ax.set_title(f'{symbol} Stock Price Chart (Alpha Vantage) - {cycle_label} & {half_cycle_label}', fontsize=16) # Updated title
+    ax.set_xlabel('Date', fontsize=14)
+    ax.set_ylabel('Price', fontsize=14)
+    ax.legend(fontsize=12)
     ax.grid(True)
-    plt.xticks(rotation=45, fontsize=12) # MODIFIED: Increased xticks fontsize
-    plt.yticks(fontsize=12) # MODIFIED: Increased yticks fontsize
+    plt.xticks(rotation=45, fontsize=12)
+    plt.yticks(fontsize=12)
     plt.tight_layout()
 
     st.pyplot(fig)
 
 else:
-    st.info("Failed to load data from Coinbase API. Please check for errors in the sidebar.")
+    st.info("Failed to load data from Alpha Vantage API. Please check symbol and API key in the sidebar.") # Updated info message
