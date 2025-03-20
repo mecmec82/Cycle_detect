@@ -4,3 +4,4 @@ pandas
 matplotlib
 ccxt
 datetime
+plotly
