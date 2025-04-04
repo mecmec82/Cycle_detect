@@ -93,11 +93,13 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     cycle_high_prices = []
     cycle_high_labels = [] # List to store 'L' or 'R' labels
 
-    all_lows_df = pd.concat([cycle_lows_df, half_cycle_lows_df]).sort_values(by='Date').reset_index(drop=True)
+    #all_lows_df = pd.concat([cycle_lows_df, half_cycle_lows_df]).sort_values(by='Date').reset_index(drop=True)
 
     for i in range(len(all_lows_df) - 1):
-        start_date = all_lows_df['Date'].iloc[i]
-        end_date = all_lows_df['Date'].iloc[i+1]
+        #start_date = all_lows_df['Date'].iloc[i]
+        #end_date = all_lows_df['Date'].iloc[i+1]
+        start_date = cycle_lows_df['Date'].iloc[i]
+        end_date = cycle_lows_df['Date'].iloc[i+1]
 
         high_window_df = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
 
