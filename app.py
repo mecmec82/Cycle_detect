@@ -145,14 +145,14 @@ swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 # Fetch data from Coinbase API
 @st.cache_data(ttl=3600, persist=True) # Cache data for 1 hour, use persist=True for session-based caching if needed
 #def load_data_from_coinbase(timeframe_months): # Pass timeframe_months to the cached function
-def load_data_from_coinbase(symbol): # Pass timeframe_months to the cached function
+def load_data_from_coinbase(symbol,date): # Pass timeframe_months to the cached function
     exchange = ccxt.coinbase()
     #symbol = 'BTC/USD'
     timeframe = '1d'
     #limit_days = timeframe_months * 31  # Approximate days for selected months (more than enough)
     limit_days = 300
     limit = limit_days # Use calculated limit
-    since_datetime = datetime.datetime.now() - datetime.timedelta(days=limit_days) # Use limit_days
+    since_datetime = date - datetime.timedelta(days=limit_days) # Use limit_days
     since_timestamp = exchange.parse8601(since_datetime.isoformat())
 
     try:
@@ -170,9 +170,11 @@ def load_data_from_coinbase(symbol): # Pass timeframe_months to the cached funct
         st.error(f"An unexpected error occurred: {e}")
         return None
 
+todays_date = datetime.datetime.now()
+last_iteration_date = datetime.datetime.now() - 300
 
 #df = load_data_from_coinbase(timeframe_months) # Pass timeframe_months to data loading function
-df = load_data_from_coinbase(symbol) # Pass timeframe_months to data loading function
+df = load_data_from_coinbase(symbol,todays_date) # Pass timeframe_months to data loading function
 
 if df is not None: # Proceed only if data is loaded successfully
 
