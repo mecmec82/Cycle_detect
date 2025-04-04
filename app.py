@@ -195,8 +195,15 @@ if df is not None: # Proceed only if data is loaded successfully
         tolerance_days=tolerance_days
     )
 
+    if swap_colors:
+        minima_df_copy = minima_df
+        minima_df = half_cycle_minima_df
+        half_cycle_minima_df = minima_df_copy
+        
+        
     # Find cycle highs and labels
     cycle_highs_df, cycle_high_labels = find_cycle_highs(df.copy(), minima_df, half_cycle_minima_df)
+   
 
 
     cycle_label = "Cycle Lows"
