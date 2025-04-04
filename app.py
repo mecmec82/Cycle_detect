@@ -177,7 +177,7 @@ last_iteration_date = datetime.datetime.now() -  datetime.timedelta(300)
 
 df2 = load_data_from_coinbase(symbol,todays_date) # Pass timeframe_months to data loading function
 df1 = load_data_from_coinbase(symbol,last_iteration_date) # Pass timeframe_months to data loading function
-df=pd.concat(df1,df2)
+df=pd.concat([df1,df2])
 
 if df is not None: # Proceed only if data is loaded successfully
 
