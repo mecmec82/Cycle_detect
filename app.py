@@ -95,7 +95,7 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
     #all_lows_df = pd.concat([cycle_lows_df, half_cycle_lows_df]).sort_values(by='Date').reset_index(drop=True)
 
-    for i in range(len(all_lows_df) - 1):
+    for i in range(len(cycle_lows_df) - 1):
         #start_date = all_lows_df['Date'].iloc[i]
         #end_date = all_lows_df['Date'].iloc[i+1]
         start_date = cycle_lows_df['Date'].iloc[i]
