@@ -171,7 +171,7 @@ def load_data_from_coinbase(symbol,date): # Pass timeframe_months to the cached 
         return None
 
 todays_date = datetime.datetime.now()
-last_iteration_date = datetime.datetime.now() - 300
+last_iteration_date = datetime.datetime.now() -  datetime.timedelta(300)
 
 #df = load_data_from_coinbase(timeframe_months) # Pass timeframe_months to data loading function
 df = load_data_from_coinbase(symbol,todays_date) # Pass timeframe_months to data loading function
