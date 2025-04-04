@@ -118,9 +118,9 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
 
 
             if time_to_high_from_low > midpoint_time:
-                cycle_high_labels.append('^') # Right/Late
+                cycle_high_labels.append('') # Right/Late
             else:
-                cycle_high_labels.append('^') # Left/Early
+                cycle_high_labels.append('') # Left/Early
 
                 
 
