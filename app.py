@@ -5,7 +5,7 @@ import numpy as np
 import ccxt
 import datetime
 
-def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=6, start_date=None):
+def find_local_minima_simplified(df, expected_period_days=60, tolerance_days=7, start_date=None):
     """
     Finds local minima using a simplified moving window approach.
     (No changes needed in this function)
