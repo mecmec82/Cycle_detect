@@ -206,7 +206,7 @@ if df is not None: # Proceed only if data is loaded successfully
    
 
 
-    cycle_label = "Cycle Lows"
+    cycle_label = "Cycle Lows" 
     half_cycle_label = "Half-Cycle Lows"
 
 
