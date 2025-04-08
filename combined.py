@@ -129,59 +129,51 @@ def find_cycle_highs(df, cycle_lows_df, half_cycle_lows_df):
     return cycle_highs_df, cycle_high_labels # Return both df and labels
 
 
-# Function to fetch stock data from Alpha Vantage
+# Function to fetch data from Alpha Vantage (FREE Endpoint)
 @st.cache_data(ttl=3600, persist=True)
-def load_data_from_alpha_vantage(api_key, symbol, date):
-    base_url = "https://www.alphavantage.co/query"
-    function = "TIME_SERIES_DAILY_ADJUSTED" # Daily adjusted data
-    limit_days = 300 # Consistent limit
-    end_date_str = date.strftime('%Y-%m-%d')
-    start_date = date - datetime.timedelta(days=limit_days)
-    start_date_str = start_date.strftime('%Y-%m-%d')
-
-    params = {
-        "function": function,
-        "symbol": symbol,
-        "apikey": api_key,
-        "outputsize": "full" # Request full data
-    }
+def load_data_from_alphavantage(symbol, api_key, limit_days=300): # Added limit_days parameter
+    function = 'TIME_SERIES_DAILY' # Using free daily endpoint
+    outputsize = 'full'  # Fetch maximum available data
+    url = f'https://www.alphavantage.co/query?function={function}&symbol={symbol}&outputsize={outputsize}&apikey={api_key}'
 
     try:
-        response = requests.get(base_url, params=params)
-        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
         data = response.json()
 
         if 'Time Series (Daily)' not in data:
-            st.error(f"Error fetching data from Alpha Vantage. Check API key and ticker. Message: {data.get('Error Message', 'Unknown error')}")
+            st.error(f"Error fetching data for symbol '{symbol}' from Alpha Vantage. Check symbol or API key. Raw API response: {data}")
             return None
 
         daily_data = data['Time Series (Daily)']
-        dates = sorted(daily_data.keys()) # Sort dates to ensure correct order
-        df_data = []
-        for date_str in dates:
-            day_data = daily_data[date_str]
-            df_data.append({
+        df_records = []
+        for date_str, values in daily_data.items():
+            df_records.append({
                 'Date': pd.to_datetime(date_str),
-                'Open': float(day_data['1. open']),
-                'High': float(day_data['2. high']),
-                'Low': float(day_data['3. low']),
-                'Close': float(day_data['4. close']), # or '5. adjusted close' if you prefer adjusted close
-                'Volume': float(day_data['6. volume'])
+                'Open': float(values['1. open']),
+                'High': float(values['2. high']),
+                'Low': float(values['3. low']),
+                'Close': float(values['4. close']), # Using '4. close' for unadjusted close
+                'Volume': float(values['5. volume']) # Using '5. volume' for unadjusted volume
             })
-        df = pd.DataFrame(df_data)
-        df = df.sort_values(by='Date') # Ensure sorted by date
+        df = pd.DataFrame(df_records)
+        df = df.sort_values(by='Date')  # Sort by date
         df = df.reset_index(drop=True)
-        st.sidebar.write(f"len (Alpha Vantage): {len(df)}")
+
+        if len(df) > limit_days: # Limit DataFrame to specified days
+            df = df.iloc[-limit_days:].reset_index(drop=True) # Take last 'limit_days' rows
+
+        st.sidebar.write(f"Data length for {symbol}: {len(df)}")
         return df
 
     except requests.exceptions.RequestException as e:
-        st.error(f"Error connecting to Alpha Vantage API: {e}")
+        st.error(f"API request error for symbol '{symbol}': {e}")
         return None
     except ValueError as e:
-        st.error(f"Error parsing JSON response from Alpha Vantage: {e}")
+        st.error(f"Error parsing JSON response from Alpha Vantage for symbol '{symbol}': {e}. Raw response text: {response.text}")
         return None
     except Exception as e:
-        st.error(f"An unexpected error occurred while fetching data from Alpha Vantage: {e}")
+        st.error(f"An unexpected error occurred while loading data for '{symbol}': {e}")
         return None
 
 
@@ -223,7 +215,7 @@ if data_source == "Crypto (Coinbase/CCXT)":
             timeframe = '1d'
             limit_days = 300
             limit = limit_days
-            since_datetime = date - datetime.timedelta(days=limit_days)
+            since_datetime = date - datetime.timedelta(limit_days)
             since_timestamp = exchange.parse8601(since_datetime.isoformat())
             try:
                 ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=since_timestamp, limit=limit)
@@ -246,7 +238,7 @@ if data_source == "Crypto (Coinbase/CCXT)":
 
 elif data_source == "Stocks (Alpha Vantage)":
     if api_key and symbol: # Only load if API key and symbol are provided
-        df = load_data_from_alpha_vantage(api_key, symbol, todays_date)
+        df = load_data_from_alphavantage(symbol, api_key) # using provided function
         if df is None:
             st.stop() # Stop if Alpha Vantage data loading fails
     elif not api_key and symbol:
