@@ -196,7 +196,7 @@ else:
 
 
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
-tolerance_days = st.sidebar.slider("Tolerance (Days)", min_value=0, max_value=15, value=6, step=1)
+tolerance_percentage = st.sidebar.slider("Tolerance (%)", min_value=5, max_value=15, value=10, step=1) # Tolerance as percentage
 show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True)
 swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 
@@ -250,6 +250,9 @@ if df is not None: # Proceed only if data is loaded successfully
     # Sort DataFrame by date in ascending order (oldest to newest) - already sorted by API but good practice
     df = df.sort_values(by='Date')
     df = df.reset_index(drop=True)
+
+    # Calculate tolerance days from percentage
+    tolerance_days = int((expected_period_days * tolerance_percentage) / 100)
 
     # Find local minima (full cycle)
     minima_df = find_local_minima_simplified(
