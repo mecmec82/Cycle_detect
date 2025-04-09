@@ -178,7 +178,7 @@ def load_data_from_alphavantage(symbol, api_key, limit_days=300): # Added limit_
 
 
 # Streamlit App
-st.title('Cycle Low Detection for Crypto & Stocks')
+#st.title('Cycle Low Detection for Crypto & Stocks')
 
 # Sidebar for parameters
 st.sidebar.header("Parameter Settings")
