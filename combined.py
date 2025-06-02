@@ -197,6 +197,7 @@ else:
 
 expected_period_days = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=90, value=60, step=5)
 tolerance_percentage = st.sidebar.slider("Tolerance (%)", min_value=5, max_value=15, value=10, step=1) # Tolerance as percentage
+window_size = st.sidebar.slider("Expected Cycle Period (Days)", min_value=30, max_value=300, value=100, step=10)
 show_half_cycle = st.sidebar.checkbox("Show Half-Cycle Lows", value=True)
 swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 
@@ -204,7 +205,7 @@ swap_colors = st.sidebar.checkbox("Swap Colors (Cycle/Half-Cycle)", value=False)
 # Load Data based on data source
 df = None # Initialize df
 todays_date = datetime.datetime.now()
-last_iteration_date = datetime.datetime.now() -  datetime.timedelta(300)
+last_iteration_date = datetime.datetime.now() -  datetime.timedelta(window_size)
 
 
 if data_source == "Crypto (Coinbase/CCXT)":
