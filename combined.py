@@ -332,23 +332,23 @@ if df is not None: # Proceed only if data is loaded successfully
 
 
     # Add background color spans for half-cycles
-    all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True) # Use no_overlap df
-    for i in range(len(all_lows_df) - 1):
-        start_date = all_lows_df['Date'].iloc[i]
-        end_date = all_lows_df['Date'].iloc[i+1]
-        midpoint_date = start_date + (end_date - start_date) / 2
+    #all_lows_df = pd.concat([minima_df, half_cycle_minima_df_no_overlap]).sort_values(by='Date').reset_index(drop=True) # Use no_overlap df
+    #for i in range(len(all_lows_df) - 1):
+    #    start_date = all_lows_df['Date'].iloc[i]
+    #    end_date = all_lows_df['Date'].iloc[i+1]
+    #    midpoint_date = start_date + (end_date - start_date) / 2
 
-        ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2) # Light green before midpoint
-        ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2) # Light pink after midpoint
+    #    ax.axvspan(start_date, midpoint_date, facecolor='lightgreen', alpha=0.2) # Light green before midpoint
+    #    ax.axvspan(midpoint_date, end_date, facecolor='lightpink', alpha=0.2) # Light pink after midpoint
 
     # Background color after last low
-    last_low_date = all_lows_df['Date'].iloc[-1]
-    today_date = df['Date'].max() # Use the last date in the dataframe as "today" for consistency with data range
-    time_since_last_low = today_date - last_low_date
-    threshold_time = pd.Timedelta(days=expected_period_days / 4)
+    #last_low_date = all_lows_df['Date'].iloc[-1]
+    #today_date = df['Date'].max() # Use the last date in the dataframe as "today" for consistency with data range
+    #time_since_last_low = today_date - last_low_date
+    #threshold_time = pd.Timedelta(days=expected_period_days / 4)
 
-    final_bg_color = 'lightgreen' if time_since_last_low < threshold_time else 'lightpink'
-    ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
+    #final_bg_color = 'lightgreen' if time_since_last_low < threshold_time else 'lightpink'
+    #ax.axvspan(last_low_date, today_date, facecolor=final_bg_color, alpha=0.2) # Background after last low
 
     # Calculate and plot expected next low line (Cycle) and annotation
     if not minima_df.empty: # Use minima_df to get last cycle low
