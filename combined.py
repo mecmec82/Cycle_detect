@@ -367,6 +367,12 @@ if df is not None: # Proceed only if data is loaded successfully
                     fontsize=10, color='grey', ha='left', va='top') # Annotation for Half-Cycle line with date
 
 
+    # color upcoming low
+    threshold_time = pd.Timedelta(days=expected_period_days / 4)
+    ax.axvspan(expected_next_low_date-threshold_time, expected_next_low_date+threshold_time, facecolor='lightgreen', alpha=0.2) # Background after last low
+
+
+    
     title_suffix = "(Coinbase)" if data_source == "Crypto (Coinbase/CCXT)" else "(Alpha Vantage)"
     ax.set_title(f'{symbol} Price Chart {title_suffix} - {cycle_label} & {half_cycle_label}', fontsize=16)
     ax.set_xlabel('Date', fontsize=14)
