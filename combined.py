@@ -368,8 +368,10 @@ if df is not None: # Proceed only if data is loaded successfully
 
 
     # color upcoming low
-    threshold_time = pd.Timedelta(days=expected_period_days / 4)
-    ax.axvspan(expected_next_low_date-threshold_time, expected_next_low_date+threshold_time, facecolor='lightgreen', alpha=0.2) # Background after last low
+    
+    next_low_window_start = pd.Timedelta(days=expected_next_low_date - tolerance_days)
+    next_low_window_end = pd.Timedelta(days=expected_next_low_date - tolerance_days)
+    ax.axvspan(next_low_window_start, next_low_window_end, facecolor='lightgreen', alpha=0.2) # Background after last low
 
 
     
