@@ -369,8 +369,8 @@ if df is not None: # Proceed only if data is loaded successfully
 
     # color upcoming low
     
-    next_low_window_start = pd.Timedelta(days=expected_next_low_date - tolerance_days)
-    next_low_window_end = pd.Timedelta(days=expected_next_low_date - tolerance_days)
+    next_low_window_start = expected_next_low_date - pd.Timedelta(days=tolerance_days)
+    next_low_window_end = expected_next_low_date + pd.Timedelta(days=tolerance_days)
     ax.axvspan(next_low_window_start, next_low_window_end, facecolor='lightgreen', alpha=0.2) # Background after last low
 
 
